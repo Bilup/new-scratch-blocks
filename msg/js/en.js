@@ -1,4 +1,4 @@
-﻿// This file was automatically generated.  Do not modify.
+// This file was automatically generated.  Do not modify.
 
 'use strict';
 
@@ -297,6 +297,12 @@ Blockly.Msg["DELETE_BLOCK"] = "Delete Block";
 Blockly.Msg["DELETE_X_BLOCKS"] = "Delete %1 Blocks";
 Blockly.Msg["DELETE_ALL_BLOCKS"] = "Delete all %1 blocks?";
 Blockly.Msg["CLEAN_UP"] = "Clean up Blocks";
+Blockly.Msg["ADD_FRAME"] = "Add Frame";
+Blockly.Msg["RENAME_FRAME"] = "Rename Frame";
+Blockly.Msg["DELETE_FRAME"] = "Delete Frame";
+Blockly.Msg["COLLAPSE_FRAME"] = "Collapse Frame";
+Blockly.Msg["EXPAND_FRAME"] = "Expand Frame";
+Blockly.Msg["FRAME_DEFAULT_TITLE"] = "Frame";
 Blockly.Msg["HELP"] = "Help";
 Blockly.Msg["UNDO"] = "Undo";
 Blockly.Msg["REDO"] = "Redo";
