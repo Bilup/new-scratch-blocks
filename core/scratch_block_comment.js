@@ -150,7 +150,7 @@ Blockly.ScratchBlockComment.TEXTAREA_OFFSET = 12;
  * one additional character, the ellipsis).
  * @private
  */
-Blockly.ScratchBlockComment.MAX_LABEL_LENGTH = 12;
+Blockly.ScratchBlockComment.MAX_LABEL_LENGTH = 15;
 
 /**
  * Width that a minimized comment should have.
@@ -466,11 +466,28 @@ Blockly.ScratchBlockComment.prototype.setSize = function(width, height) {
  * @package
  */
 Blockly.ScratchBlockComment.prototype.getLabelText = function() {
-  if (this.text_.length > Blockly.ScratchBlockComment.MAX_LABEL_LENGTH) {
-    if (this.block_.RTL) {
-      return '\u2026' + this.text_.slice(0, Blockly.ScratchBlockComment.MAX_LABEL_LENGTH);
+  var getCharByteLength = function(char) {
+    return (/[\u4e00-\u9fa5]/.test(char)) ? 2 : 1;
+  };
+  var byteLength = 0;
+  for (var i = 0; i < this.text_.length; i++) {
+    byteLength += getCharByteLength(this.text_[i]);
+  }
+  if (byteLength > Blockly.ScratchBlockComment.MAX_LABEL_LENGTH) {
+    var result = "";
+    var currentByteLength = 0;
+    for (var i = 0; i < this.text_.length; i++) {
+      var charByteLength = getCharByteLength(this.text_[i]);
+      if (currentByteLength + charByteLength > Blockly.ScratchBlockComment.MAX_LABEL_LENGTH){
+        break;
+      }
+      result += this.text_[i];
+      currentByteLength += charByteLength;
     }
-    return this.text_.slice(0, Blockly.ScratchBlockComment.MAX_LABEL_LENGTH) + '\u2026';
+    if (this.block_.RTL) {
+      return '\u2026' + result;
+    }
+    return result + '\u2026';
   } else {
     return this.text_;
   }

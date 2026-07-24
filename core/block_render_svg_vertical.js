@@ -565,7 +565,7 @@ Blockly.BlockSvg.prototype.updateColour = function() {
   // Update colours of input shapes.
   for (var i = 0, input; input = this.inputList[i]; i++) {
     if (input.outlinePath) {
-      if (this.getColourSecondary() == '#4C4C4C'){
+      if (this.getColourSecondary().toLowerCase() == '#4c4c4c'){
         input.outlinePath.setAttribute('stroke', this.getColourTertiary());
         input.outlinePath.setAttribute('fill', this.getColourSecondary());
       }else{
