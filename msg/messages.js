@@ -236,6 +236,18 @@ Blockly.Msg.OPERATORS_MATHOP_LOG = 'log';
 Blockly.Msg.OPERATORS_MATHOP_EEXP = 'e ^';
 Blockly.Msg.OPERATORS_MATHOP_10EXP = '10 ^';
 
+// Additional operators messages
+Blockly.Msg.OPERATORS_JOIN_LABEL = 'join';
+Blockly.Msg.OPERATORS_ADD_INPUT = 'Add input';
+Blockly.Msg.OPERATORS_REMOVE_INPUT = 'Remove input';
+Blockly.Msg.OPERATORS_CLAMP = 'clamp %1 between %2 and %3';
+Blockly.Msg.OPERATORS_MIN = 'min';
+Blockly.Msg.OPERATORS_MAX = 'max';
+Blockly.Msg.OPERATORS_AND_SEPARATOR = 'and';
+Blockly.Msg.OPERATORS_OR_SEPARATOR = 'or';
+Blockly.Msg.OPERATORS_MOD_SEPARATOR = 'mod';
+Blockly.Msg.OPERATORS_JS_LABEL = 'js';
+
 // Procedures blocks
 Blockly.Msg.PROCEDURES_DEFINITION = 'define %1';
 

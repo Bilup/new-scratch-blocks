@@ -288,32 +288,32 @@ Blockly.Blocks['operator_divide'] = Blockly.ScratchBlocks.defineExtendableOperat
 });
 
 Blockly.Blocks['operator_min'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'NUM', prefixLabel: 'min', shadow: 'math_number', output: 'output_number'
+  prefix: 'NUM', prefixLabel: Blockly.Msg.OPERATORS_MIN || 'min', shadow: 'math_number', output: 'output_number'
 });
 
 Blockly.Blocks['operator_max'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'NUM', prefixLabel: 'max', shadow: 'math_number', output: 'output_number'
+  prefix: 'NUM', prefixLabel: Blockly.Msg.OPERATORS_MAX || 'max', shadow: 'math_number', output: 'output_number'
 });
 
 Blockly.Blocks['patching_jsreporter'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'ARG', prefixLabel: 'js', shadow: 'text', output: null,
-  colour: 'colours_looks', category: 'Patching', minItems: 1
+  prefix: 'ARG', prefixLabel: Blockly.Msg.OPERATORS_JS_LABEL || 'js', shadow: 'text', output: null,
+  colour: 'colours_operators', category: 'Patching', minItems: 1
 });
 
 Blockly.Blocks['patching_jsboolean'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'ARG', prefixLabel: 'js', shadow: 'text', output: 'output_boolean',
-  colour: 'colours_looks', category: 'Patching', minItems: 1
+  prefix: 'ARG', prefixLabel: Blockly.Msg.OPERATORS_JS_LABEL || 'js', shadow: 'text', output: 'output_boolean',
+  colour: 'colours_operators', category: 'Patching', minItems: 1
 });
 
 Blockly.Blocks['patching_jscommand'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'ARG', prefixLabel: 'js', shadow: 'text', output: 'shape_statement',
-  colour: 'colours_looks', category: 'Patching', minItems: 1
+  prefix: 'ARG', prefixLabel: Blockly.Msg.OPERATORS_JS_LABEL || 'js', shadow: 'text', output: 'shape_statement',
+  colour: 'colours_operators', category: 'Patching', minItems: 1
 });
 
 Blockly.Blocks['operator_clamp'] = {
   init: function() {
     this.jsonInit({
-      "message0": "clamp %1 between %2 and %3",
+      "message0": Blockly.Msg.OPERATORS_CLAMP,
       "args0": [
         {"type": "input_value", "name": "NUM"},
         {"type": "input_value", "name": "MIN"},
@@ -422,11 +422,11 @@ Blockly.Blocks['operator_gt'] = {
 };
 
 Blockly.Blocks['operator_and'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'OPERAND', separator: 'and', check: 'Boolean', output: 'output_boolean'
+  prefix: 'OPERAND', separator: Blockly.Msg.OPERATORS_AND_SEPARATOR || 'and', check: 'Boolean', output: 'output_boolean'
 });
 
 Blockly.Blocks['operator_or'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'OPERAND', separator: 'or', check: 'Boolean', output: 'output_boolean'
+  prefix: 'OPERAND', separator: Blockly.Msg.OPERATORS_OR_SEPARATOR || 'or', check: 'Boolean', output: 'output_boolean'
 });
 
 Blockly.Blocks['operator_not'] = {
@@ -452,8 +452,8 @@ Blockly.Blocks['operator_not'] = {
 
 Blockly.Blocks['operator_join'] = Blockly.ScratchBlocks.defineExtendableOperator({
   prefix: 'STRING', separator: '', prefixLabel: Blockly.Msg.OPERATORS_JOIN_LABEL || 'join',
-  shadow: 'text', output: 'output_string', category: Blockly.Categories.strings,
-  colour: 'colours_strings'
+  shadow: 'text', output: 'output_string', category: Blockly.Categories.operators,
+  colour: 'colours_operators'
 });
 
 Blockly.Blocks['operator_letter_of'] = {
@@ -474,8 +474,8 @@ Blockly.Blocks['operator_letter_of'] = {
           "name": "STRING"
         }
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
@@ -494,8 +494,8 @@ Blockly.Blocks['operator_length'] = {
           "name": "STRING"
         }
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
@@ -518,8 +518,8 @@ Blockly.Blocks['operator_contains'] = {
           "name": "STRING2"
         }
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_boolean"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_boolean"]
     });
   }
 };
@@ -533,8 +533,8 @@ Blockly.Blocks['operator_letters_of'] = {
         {"type": "input_value", "name": "LETTER2"},
         {"type": "input_value", "name": "STRING"}
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
@@ -547,8 +547,8 @@ Blockly.Blocks['operator_index_of'] = {
         {"type": "input_value", "name": "SUBSTRING"},
         {"type": "input_value", "name": "STRING"}
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_number"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_number"]
     });
   }
 };
@@ -562,8 +562,8 @@ Blockly.Blocks['operator_replace'] = {
         {"type": "input_value", "name": "STRING"},
         {"type": "input_value", "name": "REPLACE"}
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
@@ -576,8 +576,8 @@ Blockly.Blocks['operator_repeat'] = {
         {"type": "input_value", "name": "STRING"},
         {"type": "input_value", "name": "REPEAT"}
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
@@ -597,8 +597,8 @@ Blockly.Blocks['operator_change_case'] = {
           ]
         }
       ],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
@@ -608,14 +608,14 @@ Blockly.Blocks['operator_trim'] = {
     this.jsonInit({
       "message0": Blockly.Msg.OPERATORS_TRIM,
       "args0": [{"type": "input_value", "name": "STRING"}],
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };
 
 Blockly.Blocks['operator_mod'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'NUM', separator: 'mod', shadow: 'math_number', output: 'output_number'
+  prefix: 'NUM', separator: Blockly.Msg.OPERATORS_MOD_SEPARATOR || 'mod', shadow: 'math_number', output: 'output_number'
 });
 
 Blockly.Blocks["operator_pi"] = {
@@ -640,8 +640,8 @@ Blockly.Blocks["operator_newline"] = {
   init: function() {
     this.jsonInit({
       "message0": Blockly.Msg.OPERATORS_NEWLINE,
-      "category": Blockly.Categories.strings,
-      "extensions": ["colours_strings", "output_string"]
+      "category": Blockly.Categories.operators,
+      "extensions": ["colours_operators", "output_string"]
     });
   }
 };

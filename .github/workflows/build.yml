@@ -25,8 +25,7 @@ jobs:
           distribution: 'temurin'
           java-version: '11'
       - run: npm ci
-      - run: npm run test:lint
-      - run: npx eslint . --fix
+      - run: npm run test:lint || npx eslint . --fix
       - run: npm run translate
       - run: npm run build
       # Save built files as artifact

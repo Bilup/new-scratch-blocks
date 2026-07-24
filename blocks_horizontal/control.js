@@ -281,7 +281,7 @@ Blockly.Blocks['control_case'] = {
           "name": "SUBSTACK"
         }
       ],
-      "message2": "break",
+      "message2": Blockly.Msg.CONTROL_BREAK,
       "inputsInline": true,
       "previousStatement": null,
       "nextStatement": null,
