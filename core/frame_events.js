@@ -109,8 +109,8 @@ Blockly.Events.FrameBase.prototype.getFrame_ = function() {
  * @param {Blockly.Frame} frame The frame that is being changed. Null for a
  *     blank event.
  * @param {!object} oldContents Object containing the previous state of the
- *     frame's properties. Possible properties are 'title', 'color',
- *     'collapsed', or 'width' and 'height' together.
+ *     frame's properties. Possible properties are 'title', 'collapsed', or
+ *     'width' and 'height' together.
  * @param {!object} newContents Object containing the new state of the frame's
  *     properties. Must contain the same properties as oldContents.
  * @extends {Blockly.Events.FrameBase}
@@ -198,9 +198,6 @@ Blockly.Events.FrameChange.prototype.run = function(forward) {
   if (contents.hasOwnProperty('title')) {
     frame.setTitle(contents.title);
   }
-  if (contents.hasOwnProperty('color')) {
-    frame.setColor(contents.color);
-  }
   if (contents.hasOwnProperty('collapsed')) {
     frame.setCollapsed(contents.collapsed);
   }
@@ -225,7 +222,6 @@ Blockly.Events.FrameCreate = function(frame) {
   this.xy = frame.getXY();
   this.width = frame.getWidth();
   this.height = frame.getHeight();
-  this.color = frame.getColor();
   this.collapsed = frame.isCollapsed();
   this.blockIds = frame.getBlockIds();
 

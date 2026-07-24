@@ -377,7 +377,7 @@ Blockly.Blocks.defaultToolbox = '<xml id="toolbox-categories" style="display: no
     '<block type="sensing_current" id="sensing_current"></block>' +
     '<block type="sensing_dayssince2000" id="sensing_dayssince2000"></block>' +
   '</category>' +
-  '<category name="%{BKY_CATEGORY_OPERATORS}" id="operators" colour="#40BF4A" secondaryColour="#389438">' +
+  '<category name="%{BKY_CATEGORY_OPERATORS}" id="operators" colour="#59C059" secondaryColour="#46B946">' +
     '<block type="operator_add" id="operator_add">' +
       '<value name="NUM1">' +
         '<shadow type="math_number">' +

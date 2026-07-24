@@ -685,50 +685,11 @@ Blockly.Css.CONTENT = [
     'fill-opacity: 0.1',
   '}',
 
-  '.blocklyFrameBackground {',
-    'fill-opacity: 0.12;',
-    'stroke-width: 1px;',
-    'stroke-opacity: 0.6;',
-  '}',
-
-  '.blocklyFrameTopBar {',
-    'fill-opacity: 0.9;',
-  '}',
-
-  '.blocklyFrame.blocklyDragging .blocklyFrameBackground {',
-    'fill-opacity: 0.2;',
-  '}',
-
   '.blocklyFrameIcon {',
     'cursor: pointer;',
   '}',
 
-  // The icons are drawn in the same colour as the title text so that they stay
-  // legible whatever colour the frame is.
-  '.blocklyFrameIconPath {',
-    'stroke: white;',
-    'stroke-width: 2px;',
-    'stroke-linecap: round;',
-    'stroke-linejoin: round;',
-    'fill: none;',
-  '}',
-
-  '.blocklyFrameIcon:hover .blocklyFrameIconPath {',
-    'stroke-width: 2.5px;',
-  '}',
-
-  // Invisible, but gives the icon a full square of clickable area rather than
-  // just the width of its stroke.
-  '.blocklyFrameIconTarget {',
-    'fill: white;',
-    'fill-opacity: 0.001;',
-  '}',
-
   '.blocklyFrameTitle {',
-    'fill: white;',
-    'font-family: "Helvetica Neue", Helvetica, sans-serif;',
-    'font-size: 12pt;',
-    'font-weight: 500;',
     'pointer-events: none;',
     'user-select: none;',
   '}',
@@ -744,17 +705,7 @@ Blockly.Css.CONTENT = [
     'outline: none;',
     'padding: 0;',
     'width: 100%;',
-    'height: 28px;',
-    'color: white;',
-    'font-family: "Helvetica Neue", Helvetica, sans-serif;',
-    'font-size: 12pt;',
-    'font-weight: 500;',
-  '}',
-
-  '.blocklyFrameResize {',
-    'fill: #ffffff;',
-    'fill-opacity: 0.001;',
-    'cursor: se-resize;',
+    'height: 32px;',
   '}',
 
   '.scratchCommentText {',

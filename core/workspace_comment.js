@@ -49,7 +49,7 @@ goog.require('goog.math.Coordinate');
 Blockly.WorkspaceComment = function(workspace, content, height, width, minimized, opt_id) {
   /** @type {string} */
   this.id = (opt_id && !workspace.getCommentById(opt_id)) ?
-      opt_id : Blockly.utils.genUid();
+    opt_id : Blockly.utils.genUid();
 
   workspace.addTopComment(this);
 
@@ -125,7 +125,7 @@ Blockly.WorkspaceComment = function(workspace, content, height, width, minimized
  * one additional character, the ellipsis).
  * @private
  */
-Blockly.WorkspaceComment.MAX_LABEL_LENGTH = 12;
+Blockly.WorkspaceComment.MAX_LABEL_LENGTH = 15;
 
 /**
  * Dispose of this comment.
@@ -191,7 +191,7 @@ Blockly.WorkspaceComment.prototype.setWidth = function(width) {
  *     these numbers do not change as the workspace scales.
  */
 Blockly.WorkspaceComment.prototype.getHeightWidth = function() {
-  return {height: this.height_, width: this.width_};
+  return { height: this.height_, width: this.width_ };
 };
 
 /**
@@ -224,7 +224,7 @@ Blockly.WorkspaceComment.prototype.moveBy = function(dx, dy) {
  */
 Blockly.WorkspaceComment.prototype.isDeletable = function() {
   return this.deletable_ &&
-      !(this.workspace && this.workspace.options.readOnly);
+    !(this.workspace && this.workspace.options.readOnly);
 };
 
 /**
@@ -243,7 +243,7 @@ Blockly.WorkspaceComment.prototype.setDeletable = function(deletable) {
  */
 Blockly.WorkspaceComment.prototype.isMovable = function() {
   return this.movable_ &&
-      !(this.workspace && this.workspace.options.readOnly);
+    !(this.workspace && this.workspace.options.readOnly);
 };
 
 /**
@@ -272,7 +272,7 @@ Blockly.WorkspaceComment.prototype.getText = function() {
 Blockly.WorkspaceComment.prototype.setText = function(text) {
   if (this.content_ != text) {
     Blockly.Events.fire(new Blockly.Events.CommentChange(
-        this, {text: this.content_}, {text: text}));
+        this, { text: this.content_ }, { text: text }));
     this.content_ = text;
   }
 };
@@ -308,11 +308,28 @@ Blockly.WorkspaceComment.prototype.toXmlWithXY = function(opt_noId) {
  * @package
  */
 Blockly.WorkspaceComment.prototype.getLabelText = function() {
-  if (this.content_.length > Blockly.WorkspaceComment.MAX_LABEL_LENGTH) {
-    if (this.RTL) {
-      return '\u2026' + this.content_.slice(0, Blockly.WorkspaceComment.MAX_LABEL_LENGTH);
+  var getCharByteLength = function(char) {
+    return (/[\u4e00-\u9fa5]/.test(char)) ? 2 : 1;
+  };
+  var byteLength = 0;
+  for (var i = 0; i < this.content_.length; i++) {
+    byteLength += getCharByteLength(this.content_[i]);
+  }
+  if (byteLength > Blockly.WorkspaceComment.MAX_LABEL_LENGTH) {
+    var result = "";
+    var currentByteLength = 0;
+    for (var i = 0; i < this.content_.length; i++) {
+      var charByteLength = getCharByteLength(this.content_[i]);
+      if (currentByteLength + charByteLength > Blockly.WorkspaceComment.MAX_LABEL_LENGTH){
+        break;
+      }
+      result += this.content_[i];
+      currentByteLength += charByteLength;
     }
-    return this.content_.slice(0, Blockly.WorkspaceComment.MAX_LABEL_LENGTH) + '\u2026';
+    if (this.RTL) {
+      return '\u2026' + result;
+    }
+    return result + '\u2026';
   } else {
     return this.content_;
   }

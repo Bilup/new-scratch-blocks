@@ -417,7 +417,12 @@ Blockly.Xml.textToDom = function(text) {
 Blockly.Xml.clearWorkspaceAndLoadFromXml = function(xml, workspace) {
   workspace.setResizesEnabled(false);
   workspace.setToolboxRefreshEnabled(false);
-  workspace.clear();
+  Blockly.Events.disable();
+  try {
+    workspace.clear();
+  } finally {
+    Blockly.Events.enable();
+  }
   var blockIds = Blockly.Xml.domToWorkspace(xml, workspace);
   workspace.setResizesEnabled(true);
   workspace.setToolboxRefreshEnabled(true);
@@ -1888,7 +1893,12 @@ Blockly.Xml.descsToWorkspace_ = function(descs, workspace) {
 Blockly.Xml.clearWorkspaceAndLoadFromDescs = function(xml, descs, workspace) {
   workspace.setResizesEnabled(false);
   workspace.setToolboxRefreshEnabled(false);
-  workspace.clear();
+  Blockly.Events.disable();
+  try {
+    workspace.clear();
+  } finally {
+    Blockly.Events.enable();
+  }
   Blockly.Xml.domToWorkspace(xml, workspace);
   Blockly.Xml.descsToWorkspace_(descs, workspace);
   workspace.setResizesEnabled(true);

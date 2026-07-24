@@ -19,8 +19,9 @@
  */
 
 /**
- * @fileoverview A frame: a labelled, coloured, resizable, collapsible box that
- * visually groups the scripts sitting inside it.
+ * @fileoverview A frame: a labelled, resizable, collapsible box that visually
+ * groups the scripts sitting inside it. Frames are drawn and behave like
+ * workspace comments, and share their styling.
  */
 'use strict';
 
@@ -38,7 +39,7 @@ goog.require('goog.math.Coordinate');
 /**
  * Class for a frame.
  * @param {!Blockly.WorkspaceSvg} workspace The workspace to put the frame on.
- * @param {!Object} opt_options Options: id, title, x, y, width, height, color,
+ * @param {!Object} opt_options Options: id, title, x, y, width, height,
  *     collapsed.
  * @constructor
  */
@@ -60,7 +61,6 @@ Blockly.Frame = function(workspace, opt_options) {
   this.isFrame = true;
 
   this.title_ = options.title || '';
-  this.color_ = options.color || Blockly.Frame.DEFAULT_COLOR;
   this.collapsed_ = !!options.collapsed;
 
   /**
@@ -105,42 +105,26 @@ Blockly.Frame.DEFAULT_WIDTH = 320;
 /** Default height of a new frame, in workspace units. */
 Blockly.Frame.DEFAULT_HEIGHT = 200;
 
-/** Minimum width of a frame, in workspace units. */
-Blockly.Frame.MIN_WIDTH = 60;
+/** Minimum width of a frame, in workspace units. Fits both title bar icons. */
+Blockly.Frame.MIN_WIDTH = 100;
 
 /** Minimum height of a frame, in workspace units. */
-Blockly.Frame.MIN_HEIGHT = 40;
+Blockly.Frame.MIN_HEIGHT = 54;
 
 /** Height of the title bar, and of the whole frame when collapsed. */
-Blockly.Frame.TOP_BAR_HEIGHT = 28;
+Blockly.Frame.TOP_BAR_HEIGHT = 32;
 
 /** Size of the square corner resize handle. */
 Blockly.Frame.RESIZE_SIZE = 16;
 
 /** Size of the icons in the title bar. */
-Blockly.Frame.ICON_SIZE = 20;
+Blockly.Frame.ICON_SIZE = 32;
+
+/** Corner radius of the frame, matching a workspace comment. */
+Blockly.Frame.BORDER_RADIUS = 4;
 
 /** Gap left around the blocks inside a frame when it grows to fit them. */
 Blockly.Frame.PADDING = 16;
-
-/** Default frame colour. */
-Blockly.Frame.DEFAULT_COLOR = '#4C97FF';
-
-/**
- * The colours offered in the frame's context menu, matching the Scratch
- * category palette.
- * @type {!Array.<!Array.<string>>} Pairs of [name, hex].
- */
-Blockly.Frame.COLORS = [
-  ['Blue', '#4C97FF'],
-  ['Purple', '#9966FF'],
-  ['Pink', '#CF63CF'],
-  ['Green', '#59C059'],
-  ['Yellow', '#FFBF00'],
-  ['Orange', '#FF8C1A'],
-  ['Red', '#FF6680'],
-  ['Grey', '#8A9099']
-];
 
 /**
  * Create the frame's DOM, and put it behind every block on the workspace.
@@ -152,39 +136,36 @@ Blockly.Frame.prototype.createDom_ = function() {
 
   this.svgRect_ = Blockly.utils.createSvgElement('rect',
       {
-        'class': 'blocklyFrameBackground',
+        'class': 'scratchCommentRect scratchWorkspaceCommentBorder',
         'x': 0,
         'y': 0,
-        'rx': 8,
-        'ry': 8
+        'rx': Blockly.Frame.BORDER_RADIUS,
+        'ry': Blockly.Frame.BORDER_RADIUS
       },
       this.svgGroup_);
 
   this.svgTopBar_ = Blockly.utils.createSvgElement('rect',
       {
-        'class': 'blocklyDraggable blocklyFrameTopBar',
+        'class': 'blocklyDraggable scratchCommentTopBar',
         'x': 0,
         'y': 0,
-        'rx': 8,
-        'ry': 8,
+        'rx': 1,
+        'ry': 1,
         'height': Blockly.Frame.TOP_BAR_HEIGHT
       },
       this.svgGroup_);
 
-  // The icons are drawn rather than loaded from media, so that they can take
-  // the same colour as the title text and stay legible on any frame colour.
-  this.collapseIcon_ = this.createIcon_(
-      'M 5 8 L 10 13 L 15 8', 4);
-  this.deleteIcon_ = this.createIcon_(
-      'M 6 6 L 14 14 M 14 6 L 6 14', 0);
+  this.collapseIcon_ = this.createIcon_();
+  this.deleteIcon_ = this.createIcon_();
+  this.setIconImage_(this.deleteIcon_, 'delete-x.svg');
 
   // The title is plain text so that the whole title bar stays draggable.
   // Double-clicking it, or the Rename context menu item, swaps in the input
   // below.
   this.titleText_ = Blockly.utils.createSvgElement('text',
       {
-        'class': 'blocklyFrameTitle',
-        'x': Blockly.Frame.ICON_SIZE + 8,
+        'class': 'scratchCommentText blocklyFrameTitle',
+        'x': Blockly.Frame.ICON_SIZE,
         'y': Blockly.Frame.TOP_BAR_HEIGHT / 2,
         'dominant-baseline': 'central'
       },
@@ -193,7 +174,7 @@ Blockly.Frame.prototype.createDom_ = function() {
   this.foreignObject_ = Blockly.utils.createSvgElement('foreignObject',
       {
         'class': 'blocklyFrameForeignObject',
-        'x': Blockly.Frame.ICON_SIZE + 8,
+        'x': Blockly.Frame.ICON_SIZE,
         'y': 0,
         'height': Blockly.Frame.TOP_BAR_HEIGHT,
         'display': 'none'
@@ -203,7 +184,7 @@ Blockly.Frame.prototype.createDom_ = function() {
   body.setAttribute('xmlns', Blockly.HTML_NS);
   body.className = 'blocklyMinimalBody';
   this.titleInput_ = document.createElementNS(Blockly.HTML_NS, 'input');
-  this.titleInput_.className = 'blocklyFrameTitleInput';
+  this.titleInput_.className = 'blocklyFrameTitleInput scratchCommentText';
   this.titleInput_.setAttribute('dir', this.workspace.RTL ? 'RTL' : 'LTR');
   this.titleInput_.setAttribute('placeholder', Blockly.Msg.FRAME_DEFAULT_TITLE);
   body.appendChild(this.titleInput_);
@@ -212,7 +193,11 @@ Blockly.Frame.prototype.createDom_ = function() {
   this.setTitleText_();
 
   this.resizeGroup_ = Blockly.utils.createSvgElement('g',
-      {'class': 'blocklyFrameResize'}, this.svgGroup_);
+      {
+        'class': this.workspace.RTL ?
+            'scratchCommentResizeSW' : 'scratchCommentResizeSE'
+      },
+      this.svgGroup_);
   var resizeSize = Blockly.Frame.RESIZE_SIZE;
   Blockly.utils.createSvgElement('polygon',
       {'points': [0, resizeSize, resizeSize, resizeSize, resizeSize, 0].join(' ')},
@@ -230,42 +215,57 @@ Blockly.Frame.prototype.createDom_ = function() {
         'x2': resizeSize - 1, 'y2': resizeSize * 2 / 3
       }, this.resizeGroup_);
 
-  // Frames paint behind every block, so they go at the front of the block
-  // canvas rather than being appended to it.
-  var canvas = this.workspace.getCanvas();
-  canvas.insertBefore(this.svgGroup_, canvas.firstChild);
+  this.bringToFront();
 };
 
 /**
- * Draw one of the title bar icons. The icon is a stroked path rather than an
- * image so that it can take the same colour as the title text, which keeps it
- * legible whatever colour the frame is. It sits on an invisible rectangle so
- * that the whole icon-sized square is clickable, not just the thin stroke.
- * @param {string} path The path data, drawn inside an ICON_SIZE box.
- * @param {number} x Where to put the icon, relative to the left of the frame.
- *     The delete icon is positioned from the right in setSize instead.
- * @return {!SVGElement} The icon's group.
+ * Move the frame in front of the other frames, but keep it behind every block.
+ * Frames share the block canvas with the blocks and <g> tags have no z-index,
+ * so this is a reorder of the canvas' children: all the frames sit at the
+ * front of it, in stacking order, followed by the blocks.
+ * @package
+ */
+Blockly.Frame.prototype.bringToFront = function() {
+  var canvas = this.workspace.getCanvas();
+  var children = canvas.childNodes;
+  var firstBlock = null;
+  for (var i = 0; i < children.length; i++) {
+    if (!Blockly.utils.hasClass(children[i], 'blocklyFrame')) {
+      firstBlock = children[i];
+      break;
+    }
+  }
+  canvas.insertBefore(this.svgGroup_, firstBlock);
+};
+
+/**
+ * Add one of the title bar icons, using the same media as a workspace comment.
+ * Both icons start on the left; setSize moves the delete icon over to the
+ * right edge.
+ * @return {!SVGElement} The icon's image element.
  * @private
  */
-Blockly.Frame.prototype.createIcon_ = function(path, x) {
-  var group = Blockly.utils.createSvgElement('g',
+Blockly.Frame.prototype.createIcon_ = function() {
+  return Blockly.utils.createSvgElement('image',
       {
         'class': 'blocklyFrameIcon',
-        'transform': 'translate(' + x + ',' +
-            ((Blockly.Frame.TOP_BAR_HEIGHT - Blockly.Frame.ICON_SIZE) / 2) + ')'
-      },
-      this.svgGroup_);
-  Blockly.utils.createSvgElement('rect',
-      {
-        'class': 'blocklyFrameIconTarget',
+        'x': 0,
+        'y': (Blockly.Frame.TOP_BAR_HEIGHT - Blockly.Frame.ICON_SIZE) / 2,
         'width': Blockly.Frame.ICON_SIZE,
         'height': Blockly.Frame.ICON_SIZE
       },
-      group);
-  Blockly.utils.createSvgElement('path',
-      {'class': 'blocklyFrameIconPath', 'd': path},
-      group);
-  return group;
+      this.svgGroup_);
+};
+
+/**
+ * Point a title bar icon at one of the media images.
+ * @param {!SVGElement} icon The icon's image element.
+ * @param {string} image The file name of the image, inside the media folder.
+ * @private
+ */
+Blockly.Frame.prototype.setIconImage_ = function(icon, image) {
+  icon.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href',
+      this.workspace.options.pathToMedia + image);
 };
 
 /**
@@ -305,15 +305,13 @@ Blockly.Frame.prototype.stopEditingTitle_ = function() {
 };
 
 /**
- * Rotate the collapse chevron to point down when the frame is open and right
- * when it is closed.
+ * Swap the collapse arrow between its open and closed images, the same way a
+ * workspace comment does when it is minimized.
  * @private
  */
 Blockly.Frame.prototype.updateCollapseIcon_ = function() {
-  var half = Blockly.Frame.ICON_SIZE / 2;
-  var path = this.collapseIcon_.querySelector('.blocklyFrameIconPath');
-  path.setAttribute('transform', this.collapsed_ ?
-      'rotate(-90,' + half + ',' + half + ')' : '');
+  this.setIconImage_(this.collapseIcon_, this.collapsed_ ?
+      'comment-arrow-up.svg' : 'comment-arrow-down.svg');
 };
 
 /**
@@ -371,7 +369,6 @@ Blockly.Frame.prototype.render = function() {
         });
   }
 
-  this.applyColor_();
   this.updateCollapseIcon_();
   this.setSize(this.width_, this.height_);
   if (this.collapsed_) {
@@ -412,27 +409,15 @@ Blockly.Frame.prototype.setSize = function(width, height) {
   var iconSize = Blockly.Frame.ICON_SIZE;
   // The delete icon hangs off the right edge, so it is the one thing that has
   // to be repositioned whenever the frame's width changes.
-  this.deleteIcon_.setAttribute('transform', 'translate(' +
-      (width - iconSize - 4) + ',' +
-      ((Blockly.Frame.TOP_BAR_HEIGHT - iconSize) / 2) + ')');
+  this.deleteIcon_.setAttribute('x', width - iconSize);
 
   this.foreignObject_.setAttribute('width',
-      Math.max(0, width - (2 * iconSize) - 16));
+      Math.max(0, width - (2 * iconSize)));
 
   this.resizeGroup_.setAttribute('transform', 'translate(' +
       (width - Blockly.Frame.RESIZE_SIZE) + ',' +
       (drawnHeight - Blockly.Frame.RESIZE_SIZE) + ')');
   this.resizeGroup_.setAttribute('display', this.collapsed_ ? 'none' : '');
-};
-
-/**
- * Paint the frame in its current colour.
- * @private
- */
-Blockly.Frame.prototype.applyColor_ = function() {
-  this.svgRect_.setAttribute('fill', this.color_);
-  this.svgRect_.setAttribute('stroke', this.color_);
-  this.svgTopBar_.setAttribute('fill', this.color_);
 };
 
 /**
@@ -456,29 +441,6 @@ Blockly.Frame.prototype.setTitle = function(title) {
       this, {title: this.title_}, {title: title}));
   this.title_ = title;
   this.setTitleText_();
-};
-
-/**
- * @return {string} The frame's colour, as a hex string.
- * @package
- */
-Blockly.Frame.prototype.getColor = function() {
-  return this.color_;
-};
-
-/**
- * Set the frame's colour.
- * @param {string} color The new colour, as a hex string.
- * @package
- */
-Blockly.Frame.prototype.setColor = function(color) {
-  if (this.color_ == color) {
-    return;
-  }
-  Blockly.Events.fire(new Blockly.Events.FrameChange(
-      this, {color: this.color_}, {color: color}));
-  this.color_ = color;
-  this.applyColor_();
 };
 
 /**
@@ -643,6 +605,7 @@ Blockly.Frame.prototype.dragMembersTo_ = function(x, y) {
  */
 Blockly.Frame.prototype.setDragging = function(adding) {
   if (adding) {
+    this.bringToFront();
     this.dragMembers_ = this.getMembers();
     this.lastDragXY_ = this.getXY();
     this.dragMemberEvents_ = [];
@@ -668,21 +631,27 @@ Blockly.Frame.prototype.setDragging = function(adding) {
 };
 
 /**
- * Frames are deleted with their delete icon or their context menu, never by
- * dragging them onto the toolbox, which would raise the question of what
- * should happen to the scripts travelling with them.
- * @return {boolean} Always false.
+ * @return {boolean} True. Frames can be dropped on the toolbox or the trash
+ *     can to delete them, like blocks and comments. The scripts travelling
+ *     with the frame go with it.
  * @package
  */
 Blockly.Frame.prototype.isDeletable = function() {
-  return false;
+  return true;
 };
 
 /**
- * No-op, for compatibility with the bubble dragger.
+ * Update the cursor over the frame to show whether dropping it now would
+ * delete it.
+ * @param {boolean} enable True if the delete cursor should be shown.
  * @package
  */
-Blockly.Frame.prototype.setDeleteStyle = function() {
+Blockly.Frame.prototype.setDeleteStyle = function(enable) {
+  if (enable) {
+    Blockly.utils.addClass(this.svgGroup_, 'blocklyDraggingDelete');
+  } else {
+    Blockly.utils.removeClass(this.svgGroup_, 'blocklyDraggingDelete');
+  }
 };
 
 /**
@@ -962,7 +931,6 @@ Blockly.Frame.prototype.deleteMouseUp_ = function(e) {
     this.iconArmed_ = false;
     Blockly.Events.setGroup(true);
     try {
-      Blockly.Events.fire(new Blockly.Events.FrameDelete(this));
       this.dispose();
     } finally {
       Blockly.Events.setGroup(false);
@@ -1076,26 +1044,12 @@ Blockly.Frame.prototype.showContextMenu_ = function(e) {
     }
   });
 
-  for (var i = 0; i < Blockly.Frame.COLORS.length; i++) {
-    var color = Blockly.Frame.COLORS[i][1];
-    options.push({
-      text: Blockly.Frame.COLORS[i][0],
-      enabled: color != this.color_,
-      callback: (function(c) {
-        return function() {
-          frame.setColor(c);
-        };
-      })(color)
-    });
-  }
-
   options.push({
     text: Blockly.Msg.DELETE_FRAME,
     enabled: true,
     callback: function() {
       Blockly.Events.setGroup(true);
       try {
-        Blockly.Events.fire(new Blockly.Events.FrameDelete(frame));
         frame.dispose();
       } finally {
         Blockly.Events.setGroup(false);
@@ -1107,12 +1061,21 @@ Blockly.Frame.prototype.showContextMenu_ = function(e) {
 };
 
 /**
- * Dispose of the frame. The scripts inside it are left alone.
+ * Dispose of the frame. The scripts inside it are left alone, unless the frame
+ * is being dropped on a delete area mid-drag, in which case they travelled
+ * into it with the frame and go with it.
  * @package
  */
 Blockly.Frame.prototype.dispose = function() {
   if (!this.workspace) {
     return;
+  }
+  var members = this.dragMembers_;
+  if (members) {
+    // Ends the drag, which fires the members' move events, so that undoing the
+    // deletion puts them back where the drag started rather than in the
+    // delete area.
+    this.setDragging(false);
   }
   // Never leave the scripts inside a collapsed frame hidden. When the whole
   // workspace is being torn down the blocks are going away anyway, and
@@ -1122,6 +1085,10 @@ Blockly.Frame.prototype.dispose = function() {
   }
   this.unbindDragEvents_();
 
+  if (Blockly.Events.isEnabled()) {
+    Blockly.Events.fire(new Blockly.Events.FrameDelete(this));
+  }
+
   var workspace = this.workspace;
   workspace.removeTopFrame(this);
   goog.dom.removeNode(this.svgGroup_);
@@ -1130,6 +1097,12 @@ Blockly.Frame.prototype.dispose = function() {
   this.svgRect_ = null;
   this.svgTopBar_ = null;
   this.workspace = null;
+
+  if (members) {
+    for (var i = 0; i < members.length; i++) {
+      members[i].dispose(false, true);
+    }
+  }
 
   workspace.resizeContents();
 };
@@ -1146,7 +1119,6 @@ Blockly.Frame.prototype.toXmlWithXY = function() {
   element.setAttribute('y', Math.round(this.xy_.y));
   element.setAttribute('w', Math.round(this.width_));
   element.setAttribute('h', Math.round(this.height_));
-  element.setAttribute('color', this.color_);
   element.setAttribute('collapsed', this.collapsed_);
   if (this.collapsed_ && this.blockIds_.length) {
     element.setAttribute('blocks', this.blockIds_.join(','));
@@ -1172,7 +1144,6 @@ Blockly.Frame.fromXml = function(xmlFrame, workspace) {
     y: parseInt(xmlFrame.getAttribute('y'), 10) || 0,
     width: parseInt(xmlFrame.getAttribute('w'), 10) || Blockly.Frame.DEFAULT_WIDTH,
     height: parseInt(xmlFrame.getAttribute('h'), 10) || Blockly.Frame.DEFAULT_HEIGHT,
-    color: xmlFrame.getAttribute('color') || Blockly.Frame.DEFAULT_COLOR,
     collapsed: xmlFrame.getAttribute('collapsed') == 'true'
   });
 };

@@ -28,6 +28,8 @@ goog.provide('Blockly.BubbleDragger');
 
 goog.require('Blockly.Bubble');
 goog.require('Blockly.Events.CommentMove');
+goog.require('Blockly.Events.DragFrameOutside');
+goog.require('Blockly.Events.EndFrameDrag');
 goog.require('Blockly.Events.FrameMove');
 goog.require('Blockly.WorkspaceCommentSvg');
 
@@ -74,6 +76,15 @@ Blockly.BubbleDragger = function(bubble, workspace) {
    * @private
    */
   this.wouldDeleteBubble_ = false;
+
+  /**
+   * Whether the bubble was outside the blocks area on the last drag step.
+   * Only tracked for frames, which can be dropped on the rest of the editor
+   * the way blocks can.
+   * @type {boolean}
+   * @private
+   */
+  this.wasOutside_ = false;
 
   /**
    * The location of the top left corner of the dragging bubble's body at the
@@ -146,6 +157,15 @@ Blockly.BubbleDragger.prototype.dragBubble = function(e, currentDragDeltaXY) {
 
   this.draggingBubble_.moveDuringDrag(this.dragSurface_, newLoc);
 
+  if (this.draggingBubble_.isFrame) {
+    var isOutside = !this.workspace_.isInsideBlocksArea(e);
+    if (isOutside !== this.wasOutside_) {
+      Blockly.Events.fire(
+          new Blockly.Events.DragFrameOutside(this.draggingBubble_, isOutside));
+      this.wasOutside_ = isOutside;
+    }
+  }
+
   if (this.draggingBubble_.isDeletable()) {
     this.deleteArea_ =  this.workspace_.isDeleteArea(e);
     this.updateCursorDuringBubbleDrag_();
@@ -213,6 +233,14 @@ Blockly.BubbleDragger.prototype.endBubbleDrag = function(
 
   // Move the bubble to its final location.
   this.draggingBubble_.moveTo(newLoc.x, newLoc.y);
+
+  if (this.draggingBubble_.isFrame) {
+    // Fired before the frame can be deleted, while the scripts it carries are
+    // still around to be copied out of it.
+    Blockly.Events.fire(new Blockly.Events.EndFrameDrag(
+        this.draggingBubble_, this.wasOutside_));
+  }
+
   var deleted = this.maybeDeleteBubble_();
 
   if (!deleted) {
