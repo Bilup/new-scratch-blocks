@@ -419,3 +419,8 @@ Blockly.Msg.NEW_BROADCAST_MESSAGE = 'New message';
 Blockly.Msg.NEW_BROADCAST_MESSAGE_TITLE = 'New message name:';
 Blockly.Msg.BROADCAST_MODAL_TITLE = 'New Message';
 Blockly.Msg.DEFAULT_BROADCAST_MESSAGE_NAME = 'message1';
+
+// TurboWarp compatibility warnings
+Blockly.Msg.UNSUPPORT_TW_1 = 'Blocks below do not support TurboWarp';
+Blockly.Msg.UNSUPPORT_TW_2 = 'And we highly discourage using them';
+Blockly.Msg.UNSUPPORT_TW_3 = 'They\'re keeping here only for compatibility with MistWarp';
