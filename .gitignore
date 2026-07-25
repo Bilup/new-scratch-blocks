@@ -25,10 +25,6 @@ python_compressed.js
 
 /accessible/*
 /dist
-/msg/js/*
-!/msg/js/en.js
-/msg/json/*
-!/msg/json/en.json
 /gh-pages/main.js
 /gh-pages/playgrounds
 /gh-pages/Gemfile.lock

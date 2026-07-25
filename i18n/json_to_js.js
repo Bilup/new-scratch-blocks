@@ -4,10 +4,7 @@ const path = require('path');
 const glob = require('glob');
 
 // Globals
-const PATH_INPUT = path.resolve(__dirname, '../msg/json/en.json');
-// If you want to generate js files for other languages, comment out the line above,
-// and use the one below instead.
-// const PATH_INPUT = path.resolve(__dirname, '../msg/json/*.json');
+const PATH_INPUT = path.resolve(__dirname, '../msg/json/*.json');
 const PATH_OUTPUT = path.resolve(__dirname, '../msg/js');
 const CONCURRENCY_LIMIT = 4;
 

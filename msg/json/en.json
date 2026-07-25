@@ -344,8 +344,5 @@
     "NEW_BROADCAST_MESSAGE": "New message",
     "NEW_BROADCAST_MESSAGE_TITLE": "New message name:",
     "BROADCAST_MODAL_TITLE": "New Message",
-    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1",
-    "UNSUPPORT_TW_1": "Blocks below do not support TurboWarp",
-    "UNSUPPORT_TW_2": "And we highly discourage using them",
-    "UNSUPPORT_TW_3": "They're keeping here only for compatibility with MistWarp"
+    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1"
 }
