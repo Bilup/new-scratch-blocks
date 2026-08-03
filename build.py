@@ -587,19 +587,14 @@ if __name__ == "__main__":
     calcdeps = import_path(os.path.join(
         closure_root, closure_library, "closure", "bin", "calcdeps.py"))
 
-    try:
-      # Sanity check the local compiler
-      test_args = [closure_compiler, os.path.join("build", "test_input.js")]
-      test_proc = subprocess.Popen(test_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-      (stdout, _) = test_proc.communicate()
-      assert stdout.decode("utf-8") == read(os.path.join("build", "test_expect.js"))
+    # Sanity check the local compiler
+    test_args = [closure_compiler, os.path.join("build", "test_input.js")]
+    test_proc = subprocess.Popen(test_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    (stdout, _) = test_proc.communicate()
+    assert stdout.decode("utf-8") == read(os.path.join("build", "test_expect.js"))
 
-      print("Using local compiler: %s ...\n" % CLOSURE_COMPILER_NPM)
-    except (AssertionError, OSError):
-      print("Local compiler failed (likely Java not available). Falling back to remote compiler.\n")
-      closure_compiler = REMOTE_COMPILER
-
-  except ImportError:
+    print("Using local compiler: %s ...\n" % CLOSURE_COMPILER_NPM)
+  except (ImportError, AssertionError):
     if os.path.isdir(os.path.join(os.path.pardir, "closure-library-read-only")):
       # Dir got renamed when Closure moved from Google Code to GitHub in 2014.
       print("Error: Closure directory needs to be renamed from"

@@ -7,6 +7,9 @@
 var child_process = require('child_process');
 var _which = require('which');
 
+process.env.PYTHONUTF8 = '1';
+process.env.PYTHONIOENCODING = 'utf-8';
+
 function which(command) {
   return _which.sync(command, {
     nothrow: true

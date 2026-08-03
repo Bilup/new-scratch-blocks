@@ -1,1 +1,1 @@
-﻿var Blockly={Blocks:{}};
+var Blockly={Blocks:{}};
