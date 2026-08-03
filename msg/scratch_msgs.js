@@ -259,6 +259,8 @@ Blockly.ScratchMsgs.locales["en"] =
     "SENSING_ONLINE": "online?",
     "SENSING_USERNAME": "username",
     "SENSING_USERID": "user id",
+    "SENSING_STAGEWIDTH": "stage width",
+    "SENSING_STAGEHEIGHT": "stage height",
     "SOUND_PLAY": "start sound %1",
     "SOUND_PLAYUNTILDONE": "play sound %1 until done",
     "SOUND_STOPALLSOUNDS": "stop all sounds",
@@ -354,7 +356,9 @@ Blockly.ScratchMsgs.locales["en"] =
     "NEW_BROADCAST_MESSAGE": "New message",
     "NEW_BROADCAST_MESSAGE_TITLE": "New message name:",
     "BROADCAST_MODAL_TITLE": "New Message",
-    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1"
+    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1",
+    "COLLAPSE_ALL": "Collapse All",
+    "EXPAND_ALL": "Expand All"
 };
 
 Blockly.ScratchMsgs.locales["zh-cn"] =
@@ -609,6 +613,8 @@ Blockly.ScratchMsgs.locales["zh-cn"] =
     "SENSING_ONLINE": "在线？",
     "SENSING_USERNAME": "用户名",
     "SENSING_USERID": "用户id",
+    "SENSING_STAGEWIDTH": "舞台宽度",
+    "SENSING_STAGEHEIGHT": "舞台高度",
     "SOUND_PLAY": "播放声音 %1",
     "SOUND_PLAYUNTILDONE": "播放声音 %1 等待播完",
     "SOUND_STOPALLSOUNDS": "停止所有声音",
@@ -628,9 +634,9 @@ Blockly.ScratchMsgs.locales["zh-cn"] =
     "ASSETS_UNLOADALL": "卸载所有素材",
     "ASSETS_GET": "素材 %2 的 %1",
     "ASSETS_PROPERTY_TEXT": "文本",
-    "ASSETS_PROPERTY_DATAURI": "data URI",
-    "ASSETS_PROPERTY_BASE64": "base64",
-    "ASSETS_PROPERTY_URL": "URL",
+    "ASSETS_PROPERTY_DATAURI": "数据URI",
+    "ASSETS_PROPERTY_BASE64": "Base64",
+    "ASSETS_PROPERTY_URL": "链接",
     "ASSETS_PROPERTY_SIZE": "大小",
     "ASSETS_PROPERTY_FORMAT": "格式",
     "ASSETS_PROPERTY_FOLDER": "文件夹",
@@ -704,5 +710,7 @@ Blockly.ScratchMsgs.locales["zh-cn"] =
     "NEW_BROADCAST_MESSAGE": "新消息",
     "NEW_BROADCAST_MESSAGE_TITLE": "新消息的名称：",
     "BROADCAST_MODAL_TITLE": "新消息",
-    "DEFAULT_BROADCAST_MESSAGE_NAME": "消息1"
+    "DEFAULT_BROADCAST_MESSAGE_NAME": "消息1",
+    "COLLAPSE_ALL": "全部折叠",
+    "EXPAND_ALL": "全部展开"
 };

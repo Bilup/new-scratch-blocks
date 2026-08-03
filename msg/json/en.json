@@ -344,5 +344,9 @@
     "NEW_BROADCAST_MESSAGE": "New message",
     "NEW_BROADCAST_MESSAGE_TITLE": "New message name:",
     "BROADCAST_MODAL_TITLE": "New Message",
-    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1"
+    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1",
+    "COLLAPSE_ALL": "Collapse All",
+    "EXPAND_ALL": "Expand All",
+    "SENSING_STAGEWIDTH": "stage width",
+    "SENSING_STAGEHEIGHT": "stage height"
 }

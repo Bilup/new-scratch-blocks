@@ -560,7 +560,7 @@ Blockly.Blocks['sensing_userid'] = {
 Blockly.Blocks['sensing_stagewidth'] = {
   init: function() {
     this.jsonInit({
-      "message0": "stage width",
+      "message0": Blockly.Msg.SENSING_STAGEWIDTH,
       "category": Blockly.Categories.sensing,
       "extensions": ["colours_sensing", "output_number"]
     });
@@ -570,7 +570,7 @@ Blockly.Blocks['sensing_stagewidth'] = {
 Blockly.Blocks['sensing_stageheight'] = {
   init: function() {
     this.jsonInit({
-      "message0": "stage height",
+      "message0": Blockly.Msg.SENSING_STAGEHEIGHT,
       "category": Blockly.Categories.sensing,
       "extensions": ["colours_sensing", "output_number"]
     });

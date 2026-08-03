@@ -302,6 +302,8 @@ Blockly.Msg.SENSING_DAYSSINCE2000 = 'days since 2000';
 Blockly.Msg.SENSING_ONLINE = 'online?';
 Blockly.Msg.SENSING_USERNAME = 'username';
 Blockly.Msg.SENSING_USERID = 'user id';
+Blockly.Msg.SENSING_STAGEWIDTH = 'stage width';
+Blockly.Msg.SENSING_STAGEHEIGHT = 'stage height';
 
 // Sound blocks
 Blockly.Msg.SOUND_PLAY = 'start sound %1';
@@ -414,6 +416,10 @@ Blockly.Msg.DELETE_LIST = 'Delete the "%1" list';
 Blockly.Msg.RENAME_LIST = 'Rename list';
 
 // Broadcast Messages
+// Workspace menu
+Blockly.Msg.COLLAPSE_ALL = 'Collapse All';
+Blockly.Msg.EXPAND_ALL = 'Expand All';
+
 // @todo Remove these once fully managed by Scratch VM / Scratch GUI
 Blockly.Msg.NEW_BROADCAST_MESSAGE = 'New message';
 Blockly.Msg.NEW_BROADCAST_MESSAGE_TITLE = 'New message name:';
