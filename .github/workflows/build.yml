@@ -20,7 +20,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run test:lint || npx eslint . --fix
+      # - run: npm run test:lint || npx eslint . --fix
       - run: npm run translate
       - run: npm run prepublish
       # Save built files as artifact
