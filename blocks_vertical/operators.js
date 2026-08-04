@@ -457,9 +457,9 @@ Blockly.Blocks['operator_not'] = {
 };
 
 Blockly.Blocks['operator_join'] = Blockly.ScratchBlocks.defineExtendableOperator({
-  prefix: 'STRING', separator: '', prefixLabel: Blockly.Msg.OPERATORS_JOIN_LABEL || 'join',
+  prefix: 'STRING', separator: '', prefixLabel: function() { return Blockly.Msg.OPERATORS_JOIN_LABEL || 'join'; },
   shadow: 'text', output: 'output_string', category: Blockly.Categories.operators,
-  colour: 'colours_operators'
+  colour: 'colours_strings'
 });
 
 Blockly.Blocks['operator_letter_of'] = {
@@ -501,7 +501,7 @@ Blockly.Blocks['operator_length'] = {
         }
       ],
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_string"]
+      "extensions": ["colours_strings", "output_string"]
     });
   }
 };
@@ -540,7 +540,7 @@ Blockly.Blocks['operator_letters_of'] = {
         {"type": "input_value", "name": "STRING"}
       ],
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_string"]
+      "extensions": ["colours_strings", "output_string"]
     });
   }
 };
@@ -554,7 +554,7 @@ Blockly.Blocks['operator_index_of'] = {
         {"type": "input_value", "name": "STRING"}
       ],
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_number"]
+      "extensions": ["colours_strings", "output_number"]
     });
   }
 };
@@ -569,7 +569,7 @@ Blockly.Blocks['operator_replace'] = {
         {"type": "input_value", "name": "REPLACE"}
       ],
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_string"]
+      "extensions": ["colours_strings", "output_string"]
     });
   }
 };
@@ -583,7 +583,7 @@ Blockly.Blocks['operator_repeat'] = {
         {"type": "input_value", "name": "REPEAT"}
       ],
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_string"]
+      "extensions": ["colours_strings", "output_string"]
     });
   }
 };
@@ -604,7 +604,7 @@ Blockly.Blocks['operator_change_case'] = {
         }
       ],
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_string"]
+      "extensions": ["colours_strings", "output_string"]
     });
   }
 };
@@ -649,7 +649,7 @@ Blockly.Blocks["operator_newline"] = {
     this.jsonInit({
       "message0": Blockly.Msg.OPERATORS_NEWLINE,
       "category": Blockly.Categories.operators,
-      "extensions": ["colours_operators", "output_string"]
+      "extensions": ["colours_strings", "output_string"]
     });
   }
 };
