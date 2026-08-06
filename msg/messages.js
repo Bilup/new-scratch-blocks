@@ -319,7 +319,7 @@ Blockly.Msg.SOUND_SETVOLUMETO = 'set volume to %1%';
 Blockly.Msg.SOUND_VOLUME = 'volume';
 Blockly.Msg.SOUND_RECORD = 'record...';
 
-Blockly.Msg.ASSETS_MANAGE = 'manage assets';
+Blockly.Msg.ASSETS_MANAGE = 'Manage assets';
 Blockly.Msg.ASSETS_LOAD = 'load asset %1 as %2';
 Blockly.Msg.ASSETS_KIND_COSTUME = 'costume';
 Blockly.Msg.ASSETS_KIND_SOUND = 'sound';

@@ -263,7 +263,7 @@
     "SOUND_SETVOLUMETO": "set volume to %1%",
     "SOUND_VOLUME": "volume",
     "SOUND_RECORD": "record...",
-    "ASSETS_MANAGE": "manage assets",
+    "ASSETS_MANAGE": "Manage assets",
     "ASSETS_LOAD": "load asset %1 as %2",
     "ASSETS_KIND_COSTUME": "costume",
     "ASSETS_KIND_SOUND": "sound",
