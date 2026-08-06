@@ -249,6 +249,8 @@
     "SENSING_ONLINE": "online?",
     "SENSING_USERNAME": "username",
     "SENSING_USERID": "user id",
+    "SENSING_STAGEWIDTH": "stage width",
+    "SENSING_STAGEHEIGHT": "stage height",
     "SOUND_PLAY": "start sound %1",
     "SOUND_PLAYUNTILDONE": "play sound %1 until done",
     "SOUND_STOPALLSOUNDS": "stop all sounds",
@@ -261,6 +263,7 @@
     "SOUND_SETVOLUMETO": "set volume to %1%",
     "SOUND_VOLUME": "volume",
     "SOUND_RECORD": "record...",
+    "ASSETS_MANAGE": "manage assets",
     "ASSETS_LOAD": "load asset %1 as %2",
     "ASSETS_KIND_COSTUME": "costume",
     "ASSETS_KIND_SOUND": "sound",
@@ -341,12 +344,10 @@
     "DEFAULT_LIST_ITEM": "thing",
     "DELETE_LIST": "Delete the \"%1\" list",
     "RENAME_LIST": "Rename list",
+    "COLLAPSE_ALL": "Collapse All",
+    "EXPAND_ALL": "Expand All",
     "NEW_BROADCAST_MESSAGE": "New message",
     "NEW_BROADCAST_MESSAGE_TITLE": "New message name:",
     "BROADCAST_MODAL_TITLE": "New Message",
-    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1",
-    "COLLAPSE_ALL": "Collapse All",
-    "EXPAND_ALL": "Expand All",
-    "SENSING_STAGEWIDTH": "stage width",
-    "SENSING_STAGEHEIGHT": "stage height"
+    "DEFAULT_BROADCAST_MESSAGE_NAME": "message1"
 }

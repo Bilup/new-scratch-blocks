@@ -267,6 +267,7 @@ Blockly.Msg["SOUND_CHANGEVOLUMEBY"] = "将音量增加 %1";
 Blockly.Msg["SOUND_SETVOLUMETO"] = "将音量设为 %1%";
 Blockly.Msg["SOUND_VOLUME"] = "音量";
 Blockly.Msg["SOUND_RECORD"] = "录制…";
+Blockly.Msg["ASSETS_MANAGE"] = "管理素材";
 Blockly.Msg["ASSETS_LOAD"] = "加载素材 %1 为 %2";
 Blockly.Msg["ASSETS_KIND_COSTUME"] = "造型";
 Blockly.Msg["ASSETS_KIND_SOUND"] = "声音";

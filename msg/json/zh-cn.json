@@ -261,6 +261,7 @@
     "SOUND_SETVOLUMETO": "将音量设为 %1%",
     "SOUND_VOLUME": "音量",
     "SOUND_RECORD": "录制…",
+    "ASSETS_MANAGE": "管理素材",
     "ASSETS_LOAD": "加载素材 %1 为 %2",
     "ASSETS_KIND_COSTUME": "造型",
     "ASSETS_KIND_SOUND": "声音",
