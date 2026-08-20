@@ -303,6 +303,21 @@ Blockly.Procedures.isNameUsed = function(name, workspace, opt_exclude) {
   if (workspace.materializeAllScripts) {
     workspace.materializeAllScripts();
   }
+
+  // Name of the block being renamed (if any), so a global procedure can keep
+  // its own name without colliding with itself in the global check below.
+  var excludeProcCode = null;
+  if (opt_exclude) {
+    if (opt_exclude.getProcCode) {
+      excludeProcCode = opt_exclude.getProcCode();
+    } else if (opt_exclude.getProcedureDef) {
+      var excludeDef = opt_exclude.getProcedureDef();
+      if (excludeDef) {
+        excludeProcCode = excludeDef[0];
+      }
+    }
+  }
+
   var blocks = workspace.getAllBlocks();
   // Iterate through every block and check the name.
   for (var i = 0; i < blocks.length; i++) {
@@ -316,6 +331,18 @@ Blockly.Procedures.isNameUsed = function(name, workspace, opt_exclude) {
       }
     }
   }
+
+  // Also check global (cross-target) procedures stored in the stage, so a
+  // sprite cannot create a custom block whose name collides with a global one.
+  var globalMutations = Blockly.Procedures.globalProcedureMutations || [];
+  for (var j = 0; j < globalMutations.length; j++) {
+    var globalProcCode = globalMutations[j].getAttribute('proccode');
+    if (Blockly.Names.equals(globalProcCode, name) &&
+        !(excludeProcCode && Blockly.Names.equals(globalProcCode, excludeProcCode))) {
+      return false;
+    }
+  }
+
   return true;
 };
 
