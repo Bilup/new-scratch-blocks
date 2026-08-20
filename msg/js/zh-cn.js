@@ -341,6 +341,7 @@ Blockly.Msg["DELETE_VARIABLE"] = "删除变量「%1」";
 Blockly.Msg["NEW_PROCEDURE"] = "制作新的积木";
 Blockly.Msg["PROCEDURE_ALREADY_EXISTS"] = "已经存在名为「%1」的程序。";
 Blockly.Msg["PROCEDURE_DEFAULT_NAME"] = "积木名称";
+Blockly.Msg["PROCEDURE_GLOBAL_PREFIX"] = "[全局]";
 Blockly.Msg["PROCEDURE_USED"] = "在删除一个积木定义前，请先把该积木从所有使用的地方删除。";
 Blockly.Msg["NEW_LIST"] = "建立一个列表";
 Blockly.Msg["NEW_LIST_TITLE"] = "新的列表名：";
