@@ -292,6 +292,8 @@ Blockly.ScratchBlocks.ProcedureUtils.createAllInputs_ = function(connectionMap) 
   // Global (cross-target) procedures show a "[全局]"/"[Global]" badge before
   // their name on call and prototype blocks. The editable declaration block
   // keeps the raw name since its global flag is toggled separately in the UI.
+  // The badge appears both in the flyout and on call blocks dropped into the
+  // workspace, so the global nature of a block stays visible wherever it is.
   var procCode = this.procCode_;
   if (this.global_ && this.type !== 'procedures_declaration') {
     procCode = Blockly.Msg.PROCEDURE_GLOBAL_PREFIX + ' ' + procCode;
