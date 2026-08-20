@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * Visual Blocks Editor
  *
@@ -51,6 +51,23 @@ Blockly.Procedures.NAME_TYPE = Blockly.PROCEDURE_CATEGORY_NAME;
  * @private
  */
 Blockly.Procedures.openFolders_ = new Set();
+
+/**
+ * Global (cross-target) procedure mutations provided by the host (scratch-gui).
+ * These are procedures whose definitions live in the stage but should be
+ * callable from every target. Each entry is a `<mutation>` DOM element.
+ * @type {!Array.<Element>}
+ */
+Blockly.Procedures.globalProcedureMutations = [];
+
+/**
+ * Replace the set of global procedure mutations shown in every target's flyout.
+ * @param {!Array.<Element>} mutations Array of `<mutation>` DOM elements.
+ * @public
+ */
+Blockly.Procedures.setGlobalProcedureMutations = function(mutations) {
+  Blockly.Procedures.globalProcedureMutations = mutations || [];
+};
 
 /**
  * Check if a folder is currently open.
@@ -339,6 +356,26 @@ Blockly.Procedures.flyoutCategory = function(workspace) {
 
   // Create call blocks for each procedure defined in the workspace
   var mutations = Blockly.Procedures.allProcedureMutations(workspace);
+  mutations = Blockly.Procedures.sortProcedureMutations_(mutations);
+
+  // Merge in global (cross-target) procedures defined in the stage, so that
+  // they can be called from any target. Skip any whose procCode is already
+  // present (e.g. when the stage itself is the current target).
+  var seenProcCodes = {};
+  for (var si = 0; si < mutations.length; si++) {
+    seenProcCodes[mutations[si].getAttribute('proccode')] = true;
+  }
+  var globalMutations = Blockly.Procedures.globalProcedureMutations || [];
+  for (var gi = 0; gi < globalMutations.length; gi++) {
+    var globalMutation = globalMutations[gi];
+    var globalProcCode = globalMutation.getAttribute('proccode');
+    if (!seenProcCodes[globalProcCode]) {
+      var clonedGlobalMutation = globalMutation.cloneNode(false);
+      clonedGlobalMutation.setAttribute('generateshadows', true);
+      mutations.push(clonedGlobalMutation);
+      seenProcCodes[globalProcCode] = true;
+    }
+  }
   mutations = Blockly.Procedures.sortProcedureMutations_(mutations);
   
   // Group procedures by folder

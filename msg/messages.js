@@ -405,6 +405,7 @@ Blockly.Msg.DELETE_VARIABLE = 'Delete the "%1" variable';
 Blockly.Msg.NEW_PROCEDURE = 'Make a Block';
 Blockly.Msg.PROCEDURE_ALREADY_EXISTS = 'A procedure named "%1" already exists.';
 Blockly.Msg.PROCEDURE_DEFAULT_NAME = 'block name';
+Blockly.Msg.PROCEDURE_GLOBAL_PREFIX = '[Global]';
 Blockly.Msg.PROCEDURE_USED = 'To delete a block definition, first remove all uses of the block';
 
 // Lists
