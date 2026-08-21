@@ -601,6 +601,25 @@ Blockly.Procedures.mutateCallersAndPrototype = function(name, ws, mutation) {
 };
 
 /**
+ * Find the global procedure mutation for the given procCode. Global
+ * (cross-target) procedures are defined in the stage and their mutations are
+ * collected by the host (scratch-gui) into globalProcedureMutations.
+ * @param {string} procCode The identifier of the procedure.
+ * @return {?Element} The mutation DOM element, or null if not found.
+ * @package
+ */
+Blockly.Procedures.getGlobalProcedureMutation = function(procCode) {
+  var globalMutations = Blockly.Procedures.globalProcedureMutations || [];
+  for (var i = 0; i < globalMutations.length; i++) {
+    if (Blockly.Names.equals(
+        globalMutations[i].getAttribute('proccode'), procCode)) {
+      return globalMutations[i];
+    }
+  }
+  return null;
+};
+
+/**
  * Find the definition block for the named procedure.
  * @param {string} procCode The identifier of the procedure.
  * @param {!Blockly.Workspace} workspace The workspace to search.
@@ -732,10 +751,27 @@ Blockly.Procedures.editProcedureCallback_ = function(block) {
   } else if (block.type == Blockly.PROCEDURES_CALL_BLOCK_TYPE) {
     // This is a call block, find the prototype corresponding to the procCode.
     // Make sure to search the correct workspace, call block can be in flyout.
+    var callProcCode = block.getProcCode();
     var workspaceToSearch = block.workspace.isFlyout ?
         block.workspace.targetWorkspace : block.workspace;
     block = Blockly.Procedures.getPrototypeBlock(
-        block.getProcCode(), workspaceToSearch);
+        callProcCode, workspaceToSearch);
+    // A global (cross-target) procedure is defined in the stage, so its
+    // prototype is not present in a sprite's workspace. Fall back to the
+    // global procedure mutations collected by the host so the editor can
+    // still be opened from any target.
+    if (!block) {
+      var globalMutation = Blockly.Procedures.getGlobalProcedureMutation(
+          callProcCode);
+      if (globalMutation) {
+        Blockly.Procedures.externalProcedureDefCallback(
+            globalMutation,
+            Blockly.Procedures.editGlobalProcedureCallbackFactory_(
+                callProcCode, workspaceToSearch)
+        );
+        return;
+      }
+    }
   }
   // Block now refers to the procedure prototype block, it is safe to proceed.
   Blockly.Procedures.externalProcedureDefCallback(
@@ -755,6 +791,47 @@ Blockly.Procedures.editProcedureCallbackFactory_ = function(block) {
     if (mutation) {
       Blockly.Procedures.mutateCallersAndPrototype(block.getProcCode(),
           block.workspace, mutation);
+    }
+  };
+};
+
+/**
+ * Callback to apply an edit to a global (cross-target) procedure. The host
+ * (scratch-gui) overrides this to update the stage definition and broadcast
+ * the change to every target's flyout/workspace.
+ * @param {string} procCode The old procCode of the procedure being edited.
+ * @param {!Element} mutation The new mutation for the procedure.
+ * @param {!Blockly.Workspace} workspace The workspace the edit originated from.
+ * @public
+ */
+Blockly.Procedures.externalGlobalProcedureEditCallback =
+    function(procCode, mutation, workspace) {
+  // Delegate to the workspace-level path when the prototype is available here
+  // (e.g. when editing from the stage itself), so callers in this workspace
+  // stay in sync through the usual mutateCallersAndPrototype flow.
+  var prototypeBlock = Blockly.Procedures.getPrototypeBlock(procCode, workspace);
+  if (prototypeBlock) {
+    Blockly.Procedures.mutateCallersAndPrototype(procCode, workspace, mutation);
+    return;
+  }
+  alert('External global procedure editor must override Blockly.Procedures.externalGlobalProcedureEditCallback');
+};
+
+/**
+ * Callback factory for editing a global (cross-target) custom procedure whose
+ * definition lives in the stage. Editing can be initiated from any target;
+ * the mutation is applied through the host-provided global edit callback.
+ * @param {string} procCode The procCode of the procedure being edited.
+ * @param {!Blockly.Workspace} workspace The workspace the edit originated from.
+ * @return {function(?Element)} Callback for editing the global procedure.
+ * @private
+ */
+Blockly.Procedures.editGlobalProcedureCallbackFactory_ =
+    function(procCode, workspace) {
+  return function(mutation) {
+    if (mutation) {
+      Blockly.Procedures.externalGlobalProcedureEditCallback(
+          procCode, mutation, workspace);
     }
   };
 };
