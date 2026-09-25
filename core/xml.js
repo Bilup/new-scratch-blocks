@@ -435,16 +435,24 @@ Blockly.Xml.DEFERRED_SCRIPT_WIDTH_ESTIMATE = 300;
 Blockly.Xml.DEFERRED_BLOCK_HEIGHT_ESTIMATE = 48;
 
 /**
- * Scripts within this much of the viewport (as a multiple of the viewport's
- * width plus height) get rendered; the rest stay as placeholders until you go
- * near them.
+ * Whether scripts that leave the loaded region are unloaded again. Loading is
+ * still progressive when this is off: scripts are materialized a frame at a
+ * time as you get near them, they are just never thrown away afterwards.
  */
-Blockly.Xml.VIRTUAL_LOAD_SCREENS = 0.75;
+Blockly.Xml.VIRTUAL_CULLING_ENABLED = true;
 
 /**
- * How much further out than the load distance a script has to be before it is
- * a candidate for unloading. The gap keeps scripts just past the edge from
- * loading and unloading over and over as you scroll back and forth.
+ * The area rendered around the viewport, as a multiple of the viewport's own
+ * area. 3 means the ring outside the screen is three times the size of the
+ * screen itself, so the rendered region has four times its area.
+ */
+Blockly.Xml.VIRTUAL_VIEWPORT_AREA_FACTOR = 3;
+
+/**
+ * How much further out than the loaded region a script has to be before it is
+ * a candidate for unloading, as a multiple of the load margins. The gap keeps
+ * scripts just past the edge from loading and unloading over and over as you
+ * scroll back and forth.
  */
 Blockly.Xml.VIRTUAL_UNLOAD_SCREENS = 2;
 
@@ -816,6 +824,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       bottom: top + (metrics.viewHeight / scale)
     };
   };
+  // Distance from the viewport in units of the load margin: 0 inside it, 1 on
+  // the boundary of the loaded region, and above 1 for scripts further out.
+  // The margins are sized so that the rendered region's area is
+  // 1 + VIRTUAL_VIEWPORT_AREA_FACTOR times the viewport's own area.
   var scriptDistance = function(script, viewport) {
     var left = workspace.RTL ? script.x - phWidth : script.x;
     var right = left + phWidth;
@@ -824,11 +836,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         (left > viewport.right ? left - viewport.right : 0);
     var dy = viewport.top > bottom ? viewport.top - bottom :
         (script.y > viewport.bottom ? script.y - viewport.bottom : 0);
-    return dx + dy;
-  };
-  var loadDistance = function(viewport) {
-    return ((viewport.right - viewport.left) + (viewport.bottom - viewport.top)) *
-        Blockly.Xml.VIRTUAL_LOAD_SCREENS;
+    var grow = Math.sqrt(1 + Blockly.Xml.VIRTUAL_VIEWPORT_AREA_FACTOR);
+    var marginX = Math.max(1, (viewport.right - viewport.left) * (grow - 1) / 2);
+    var marginY = Math.max(1, (viewport.bottom - viewport.top) * (grow - 1) / 2);
+    return Math.max(dx / marginX, dy / marginY);
   };
 
   // The nearest script that wants loading, or null if nothing near does.
@@ -940,7 +951,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
     var panning = !!(gesture && gesture.isDraggingWorkspace_);
     var viewport = getViewport();
-    var maxDist = viewport ? loadDistance(viewport) : Infinity;
+    var maxDist = viewport ? 1 : Infinity;
     var pick = pickScript(viewport, maxDist);
     var deadline = now() + Blockly.Xml.DEFERRED_RENDER_BUDGET_MS;
     while (pick && now() < deadline) {
@@ -999,7 +1010,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     if (!viewport) {
       return;
     }
-    var unloadDist = loadDistance(viewport) * Blockly.Xml.VIRTUAL_UNLOAD_SCREENS;
+    var unloadDist = Blockly.Xml.VIRTUAL_UNLOAD_SCREENS;
     var t = now();
     var changed = false;
     for (var i = scripts.length - 1; i >= 0; i--) {
@@ -1014,6 +1025,12 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         continue;
       }
       if (!script.hasPosition) {
+        continue;
+      }
+      if (Blockly.Xml.VIRTUAL_CULLING_ENABLED === false) {
+        // Culling is off. Keep the recency stamp fresh so that turning it back
+        // on does not unload everything at once.
+        script.lastNear = t;
         continue;
       }
       if (scriptDistance(script, viewport) <= unloadDist) {
