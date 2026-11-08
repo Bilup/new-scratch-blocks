@@ -27,6 +27,7 @@
 goog.provide('Blockly.BlockSvg.render');
 
 goog.require('Blockly.BlockSvg');
+goog.require('Blockly.CanvasRenderer');
 
 
 // UI constants for rendering blocks.
@@ -326,6 +327,7 @@ Blockly.BlockSvg.prototype.updateColour = function() {
       field.setText(null);
     }
   }
+  Blockly.CanvasRenderer.requestFor(this.workspace);
 };
 
 /**
@@ -419,6 +421,7 @@ Blockly.BlockSvg.prototype.render = function(opt_bubble) {
   Blockly.Field.stopCache();
 
   this.updateIntersectionObserver();
+  Blockly.CanvasRenderer.requestFor(this.workspace);
 };
 
 /**

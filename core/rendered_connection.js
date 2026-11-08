@@ -324,6 +324,12 @@ Blockly.RenderedConnection.prototype.disconnectInternal_ = function(parentBlock,
     childBlock) {
   Blockly.RenderedConnection.superClass_.disconnectInternal_.call(this,
       parentBlock, childBlock);
+  var workspace = parentBlock.workspace || childBlock.workspace;
+  if (workspace && workspace.isBulkDisposing_) {
+    // Everything is being thrown away; refilling the parent's shape would be
+    // work that is immediately discarded.
+    return;
+  }
   // Rerender the parent so that it may reflow.
   if (parentBlock.rendered) {
     parentBlock.render();
@@ -341,6 +347,10 @@ Blockly.RenderedConnection.prototype.disconnectInternal_ = function(parentBlock,
  */
 Blockly.RenderedConnection.prototype.respawnShadow_ = function() {
   var parentBlock = this.getSourceBlock();
+  if (parentBlock.workspace && parentBlock.workspace.isBulkDisposing_) {
+    // The whole subtree is being thrown away; do not resurrect shadows.
+    return;
+  }
   // Respawn the shadow block if there is one.
   var shadow = this.getShadowDom();
   if (parentBlock.workspace && shadow && Blockly.Events.recordUndo) {
