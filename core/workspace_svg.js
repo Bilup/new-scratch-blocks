@@ -28,6 +28,7 @@ goog.provide('Blockly.WorkspaceSvg');
 
 // TODO(scr): Fix circular dependencies
 //goog.require('Blockly.BlockSvg');
+goog.require('Blockly.CanvasRenderer');
 goog.require('Blockly.Colours');
 goog.require('Blockly.ConnectionDB');
 goog.require('Blockly.constants');
@@ -512,6 +513,15 @@ Blockly.WorkspaceSvg.prototype.createDom = function(opt_backgroundClass) {
   if (this.grid_) {
     this.grid_.update(this.scale);
   }
+  if (this.options.canvasRenderer || Blockly.CANVAS_RENDERER_ENABLED) {
+    /**
+     * Canvas painter for block backgrounds, or null when blocks are painted
+     * as SVG paths.
+     * @type {?Blockly.CanvasRenderer}
+     * @private
+     */
+    this.canvasRenderer_ = new Blockly.CanvasRenderer(this);
+  }
   this.recordCachedAreas();
   return this.svgGroup_;
 };
@@ -530,6 +540,10 @@ Blockly.WorkspaceSvg.prototype.dispose = function() {
   if (this.intersectionObserver) {
     this.intersectionObserver.dispose();
     this.intersectionObserver = null;
+  }
+  if (this.canvasRenderer_) {
+    this.canvasRenderer_.dispose();
+    this.canvasRenderer_ = null;
   }
   Blockly.WorkspaceSvg.superClass_.dispose.call(this);
   if (this.svgGroup_) {
@@ -862,6 +876,7 @@ Blockly.WorkspaceSvg.prototype.resize = function() {
     this.scrollbar.resize();
   }
   this.updateScreenCalculations_();
+  Blockly.CanvasRenderer.requestFor(this);
   this.queueIntersectionCheck();
 };
 
@@ -934,6 +949,7 @@ Blockly.WorkspaceSvg.prototype.translate = function(x, y) {
   if (this.blockDragSurface_) {
     this.blockDragSurface_.translateAndScaleGroup(x, y, this.scale);
   }
+  Blockly.CanvasRenderer.requestFor(this);
   this.queueIntersectionCheck();
 };
 
@@ -2161,6 +2177,7 @@ Blockly.WorkspaceSvg.prototype.setScale = function(newScale) {
   } else {
     this.translate(this.scrollX, this.scrollY);
   }
+  Blockly.CanvasRenderer.requestFor(this);
   Blockly.hideChaff(false);
   if (this.flyout_) {
     // No toolbox, resize flyout.

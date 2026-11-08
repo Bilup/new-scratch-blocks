@@ -27,6 +27,7 @@
 goog.provide('Blockly.BlockSvg.render');
 
 goog.require('Blockly.BlockSvg');
+goog.require('Blockly.CanvasRenderer');
 goog.require('Blockly.Events.BlockCreate');
 goog.require('Blockly.scratchBlocksUtils');
 goog.require('Blockly.utils');
@@ -586,6 +587,7 @@ Blockly.BlockSvg.prototype.updateColour = function() {
       field.setText(null);
     }
   }
+  Blockly.CanvasRenderer.requestFor(this.workspace);
 };
 
 /**
@@ -717,6 +719,8 @@ Blockly.BlockSvg.prototype.render = function(opt_bubble) {
   Blockly.Field.stopCache();
 
   this.updateIntersectionObserver();
+  // Block geometry (and therefore cached subtree bounds) may have changed.
+  Blockly.CanvasRenderer.requestFor(this.workspace, true);
 };
 
 /**

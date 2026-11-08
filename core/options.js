@@ -130,6 +130,7 @@ Blockly.Options = function(options) {
   this.hasTrashcan = hasTrashcan;
   this.hasSounds = hasSounds;
   this.hasCss = hasCss;
+  this.canvasRenderer = !!options['canvasRenderer'];
   this.horizontalLayout = horizontalLayout;
   this.languageTree = languageTree;
   this.gridOptions = Blockly.Options.parseGridOptions_(options);

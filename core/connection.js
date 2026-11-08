@@ -625,6 +625,13 @@ Blockly.Connection.prototype.disconnectInternal_ = function(parentBlock,
  */
 Blockly.Connection.prototype.respawnShadow_ = function() {
   var parentBlock = this.getSourceBlock();
+  // While a whole subtree is being thrown away there is no point respawning
+  // shadows: they would be created just to be disposed immediately, and the
+  // respawned block would still be connected when the parent is disposed.
+  if (!parentBlock.workspace || !Blockly.Events.recordUndo ||
+      parentBlock.workspace.isBulkDisposing_) {
+    return;
+  }
   var shadow = this.getShadowDom();
   if (parentBlock.workspace && shadow && Blockly.Events.recordUndo) {
     var blockShadow =

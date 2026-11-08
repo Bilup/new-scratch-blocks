@@ -385,6 +385,13 @@ Blockly.Css.CONTENT = [
     'stroke-width: 1px;',
   '}',
 
+  /* Blocks painted on the canvas layer keep their paths for hit testing,
+     but the paths themselves are transparent. */
+  '.blocklyCanvasMode .blocklyBlockCanvas .blocklyPath {',
+    'fill: transparent;',
+    'stroke: transparent;',
+  '}',
+
   '.blocklyScriptPlaceholder {',
     'fill: rgba(127, 127, 127, 0.12);',
     'stroke: rgba(127, 127, 127, 0.25);',

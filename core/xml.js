@@ -435,6 +435,13 @@ Blockly.Xml.DEFERRED_SCRIPT_WIDTH_ESTIMATE = 300;
 Blockly.Xml.DEFERRED_BLOCK_HEIGHT_ESTIMATE = 48;
 
 /**
+ * How many blocks a script may create per step. Building the block objects for
+ * one script used to happen in a single synchronous call, so a script with
+ * thousands of blocks blocked the frame; the loader now resumes across frames.
+ */
+Blockly.Xml.DEFERRED_MATERIALIZE_BUDGET_BLOCKS = 50;
+
+/**
  * Whether scripts that leave the loaded region are unloaded again. Loading is
  * still progressive when this is off: scripts are materialized a frame at a
  * time as you get near them, they are just never thrown away afterwards.
@@ -542,6 +549,7 @@ Blockly.Xml.domToWorkspaceDeferred = function(xml, workspace, opt_callbacks,
           phase: -1,
           topBlock: null,
           blocks: null,
+          builder: null,
           blockIndex: -1,
           placeholder: null,
           loaded: false,
@@ -590,6 +598,7 @@ Blockly.Xml.domToWorkspaceDeferred = function(xml, workspace, opt_callbacks,
           phase: -1,
           topBlock: null,
           blocks: null,
+          builder: null,
           blockIndex: -1,
           placeholder: null,
           loaded: false,
@@ -681,6 +690,12 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
   // block, is no longer ours to manage.
   var dropScript = function(script) {
     removePlaceholder(script);
+    if (script.builder) {
+      // The script was dropped part-way through being built; clear up the
+      // blocks that had already been created.
+      script.builder.disposePartial();
+      script.builder = null;
+    }
     var index = scripts.indexOf(script);
     if (index !== -1) {
       scripts.splice(index, 1);
@@ -696,32 +711,48 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     return !!current && current.topLevel !== false;
   };
 
-  var materializeScript = function(script) {
-    Blockly.Events.disable();
-    try {
-      var topBlock = script.desc ?
-          Blockly.Xml.descToBlockHeadless_(script.desc, script.ctx, workspace) :
-          Blockly.Xml.domToBlockHeadless_(script.xmlNode, workspace);
-      script.topBlock = topBlock;
-      script.blocks = topBlock.getDescendants(false);
-      topBlock.setConnectionsHidden(true);
-      var svgRoot = topBlock.getSvgRoot();
-      if (svgRoot) {
-        svgRoot.style.visibility = 'hidden';
+  // Create the blocks of a script. Returns false while the script is still
+  // being built, so that a very large script is spread over several frames
+  // instead of stalling one.
+  var materializeScript = function(script, budget) {
+    var topBlock;
+    if (script.desc) {
+      if (!script.builder) {
+        script.builder = Blockly.Xml.createDescLoader_(
+            script.desc, script.ctx, workspace);
       }
-      if (script.hasPosition) {
-        topBlock.moveBy(script.x, script.y);
-        if (topBlock.comment && typeof topBlock.comment === 'object') {
-          var commentXY = topBlock.comment.getXY();
-          var commentWidth = topBlock.comment.getBubbleSize().width;
-          topBlock.comment.moveTo(workspace.RTL ?
-            workspace.getWidth() - commentXY.x - commentWidth : commentXY.x,
-          commentXY.y);
-        }
+      script.builder.step(budget);
+      if (!script.builder.done) {
+        return false;
       }
-    } finally {
-      Blockly.Events.enable();
+      topBlock = script.builder.rootBlock;
+      script.builder = null;
+    } else {
+      Blockly.Events.disable();
+      try {
+        topBlock = Blockly.Xml.domToBlockHeadless_(script.xmlNode, workspace);
+      } finally {
+        Blockly.Events.enable();
+      }
     }
+    script.topBlock = topBlock;
+    script.blocks = topBlock.getDescendants(false);
+    topBlock.setConnectionsHidden(true);
+    var svgRoot = topBlock.getSvgRoot();
+    if (svgRoot) {
+      svgRoot.style.visibility = 'hidden';
+    }
+    if (script.hasPosition) {
+      topBlock.moveBy(script.x, script.y);
+      if (topBlock.comment && typeof topBlock.comment === 'object') {
+        var commentXY = topBlock.comment.getXY();
+        var commentWidth = topBlock.comment.getBubbleSize().width;
+        topBlock.comment.moveTo(workspace.RTL ?
+          workspace.getWidth() - commentXY.x - commentWidth : commentXY.x,
+        commentXY.y);
+      }
+    }
+    return true;
   };
 
   // Throw away a script's blocks and put its placeholder back. The blocks live
@@ -737,7 +768,11 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     if (topBlock && topBlock.workspace) {
       Blockly.Events.disable();
       try {
-        topBlock.dispose(false, false);
+        if (topBlock.disposeSubtree) {
+          topBlock.disposeSubtree();
+        } else {
+          topBlock.dispose(false, false);
+        }
       } catch (e) {
         console.warn('Unloading an offscreen script failed.', e);
       } finally {
@@ -861,6 +896,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         script.topBlock = null;
         script.blocks = null;
       }
+      if (script.phase === -1 && script.builder && !script.builder.done) {
+        // Part-way through building; finish it before starting anything else.
+        return {script: script, dist: 0};
+      }
       if (!viewport || !script.hasPosition) {
         return {script: script, dist: 0};
       }
@@ -886,7 +925,11 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
   var stepScript = function(script) {
     if (script.phase === -1) {
       try {
-        materializeScript(script);
+        if (!materializeScript(script,
+            Blockly.Xml.DEFERRED_MATERIALIZE_BUDGET_BLOCKS)) {
+          // Still being built. The next frame picks it up where this left off.
+          return;
+        }
       } catch (e) {
         console.warn('Deferred block materialization failed.', e);
         dropScript(script);
@@ -1757,77 +1800,193 @@ Blockly.Xml.descToField_ = function(block, fieldDesc) {
  * @private
  */
 Blockly.Xml.descToBlockHeadless_ = function(desc, ctx, workspace) {
-  goog.asserts.assert(desc.opcode, 'Block type unspecified: %s', desc.id);
-  var block = workspace.newBlock(desc.opcode, desc.id);
+  var loader = Blockly.Xml.createDescLoader_(desc, ctx, workspace);
+  loader.step(Infinity);
+  return loader.rootBlock;
+};
 
-  // Must come before inputs: a mutation can create them.
-  if (desc.mutation && block.domToMutation) {
-    block.domToMutation(Blockly.Xml.mutationDescToDom_(desc.mutation));
-    if (block.initSvg) {
-      block.initSvg();
+/**
+ * Create a resumable block loader for a description tree. The recursion the
+ * description importer used to do turned a long statement stack into a call
+ * stack overflow, and made a script with thousands of blocks arrive in a single
+ * synchronous lump. This walks the same tree with an explicit stack, in the
+ * same order, and can be stopped and resumed in bounded chunks.
+ * @param {!Object} desc Block description.
+ * @param {!Object} ctx Load context: {blocks, comments}.
+ * @param {!Blockly.Workspace} workspace The workspace.
+ * @return {!Object} Loader with step(), done and rootBlock.
+ * @private
+ */
+Blockly.Xml.createDescLoader_ = function(desc, ctx, workspace) {
+  var rootBlock = null;
+  // Task kinds. Pushed so that the last task pushed runs first, which keeps the
+  // original import order: the block itself, its inputs, its fields, its next
+  // statement, and finally its shadow flag.
+  var CREATE = 0;
+  var CONNECT_INPUT = 1;
+  var FIELDS_AND_NEXT = 2;
+  var SET_SHADOW = 3;
+  var CONNECT_NEXT = 4;
+  var stack = [{kind: CREATE, desc: desc, link: null}];
+  var createdBlocks = [];
+  var loader = {
+    rootBlock: null,
+    done: false,
+    step: function(maxBlocks) {
+      if (loader.done) {
+        return;
+      }
+      var created = 0;
+      var eventsWereEnabled = Blockly.Events.isEnabled();
+      if (eventsWereEnabled) {
+        Blockly.Events.disable();
+      }
+      try {
+        while (stack.length && created < maxBlocks) {
+          var task = stack.pop();
+          switch (task.kind) {
+            case CREATE: {
+              var block = workspace.newBlock(task.desc.opcode, task.desc.id);
+              created++;
+              createdBlocks.push(block);
+              if (task.link) {
+                task.link.child = block;
+              } else {
+                rootBlock = block;
+              }
+              // Must come before inputs: a mutation can create them.
+              if (task.desc.mutation && block.domToMutation) {
+                block.domToMutation(
+                    Blockly.Xml.mutationDescToDom_(task.desc.mutation));
+                if (block.initSvg) {
+                  block.initSvg();
+                }
+              }
+              if (task.desc.comment && ctx.comments) {
+                var comment = ctx.comments[task.desc.comment];
+                if (comment) {
+                  Blockly.Xml.applyBlockComment_(block, {
+                    id: comment.id,
+                    x: comment.x,
+                    y: comment.y,
+                    w: comment.width,
+                    h: comment.height,
+                    minimized: !!comment.minimized,
+                    pinned: true,
+                    text: comment.text
+                  });
+                }
+              }
+              var inputTasks = [];
+              for (var inputName in task.desc.inputs) {
+                var inputDesc = task.desc.inputs[inputName];
+                // An input with only a shadow is an unoccupied input: the
+                // shadow is the value, exactly as the XML importer treats a
+                // <value> with no <block>.
+                var childId = inputDesc.block || inputDesc.shadow;
+                if (!childId) {
+                  continue;
+                }
+                var input = block.getInput(inputDesc.name);
+                if (!input) {
+                  console.warn('Ignoring non-existent input ' + inputDesc.name +
+                      ' in block ' + task.desc.opcode);
+                  continue;
+                }
+                if (inputDesc.shadow && ctx.blocks[inputDesc.shadow]) {
+                  input.connection.setShadowDesc(
+                      ctx.blocks[inputDesc.shadow], ctx);
+                }
+                var childDesc = ctx.blocks[childId];
+                if (!childDesc) {
+                  continue;
+                }
+                inputTasks.push({input: input, desc: childDesc});
+              }
+              if (task.desc.shadow) {
+                stack.push({kind: SET_SHADOW, block: block});
+              }
+              stack.push({kind: FIELDS_AND_NEXT, block: block,
+                desc: task.desc});
+              for (var i = inputTasks.length - 1; i >= 0; i--) {
+                var link = {parent: block, input: inputTasks[i].input,
+                  child: null};
+                stack.push({kind: CONNECT_INPUT, link: link});
+                stack.push({kind: CREATE, desc: inputTasks[i].desc,
+                  link: link});
+              }
+              break;
+            }
+            case CONNECT_INPUT: {
+              var inputChild = task.link.child;
+              if (inputChild.outputConnection) {
+                task.link.input.connection.connect(
+                    inputChild.outputConnection);
+              } else if (inputChild.previousConnection) {
+                task.link.input.connection.connect(
+                    inputChild.previousConnection);
+              } else {
+                goog.asserts.fail(
+                    'Child block does not have output or previous statement.');
+              }
+              break;
+            }
+            case FIELDS_AND_NEXT: {
+              for (var fieldName in task.desc.fields) {
+                Blockly.Xml.descToField_(task.block, task.desc.fields[fieldName]);
+              }
+              if (task.desc.next && ctx.blocks[task.desc.next]) {
+                var nextLink = {parent: task.block, input: null, child: null};
+                stack.push({kind: CONNECT_NEXT, link: nextLink});
+                stack.push({kind: CREATE, desc: ctx.blocks[task.desc.next],
+                  link: nextLink});
+              }
+              break;
+            }
+            case SET_SHADOW: {
+              task.block.setShadow(true);
+              break;
+            }
+            case CONNECT_NEXT: {
+              var nextBlock = task.link.child;
+              goog.asserts.assert(task.link.parent.nextConnection,
+                  'Next statement does not exist.');
+              goog.asserts.assert(nextBlock.previousConnection,
+                  'Next block does not have previous statement.');
+              task.link.parent.nextConnection.connect(
+                  nextBlock.previousConnection);
+              break;
+            }
+          }
+        }
+      } finally {
+        if (eventsWereEnabled) {
+          Blockly.Events.enable();
+        }
+      }
+      if (!stack.length) {
+        loader.done = true;
+        loader.rootBlock = rootBlock;
+      }
+    },
+    /**
+     * Throw away everything created so far. Only needed if the script is
+     * dropped or unloaded while it is still being built.
+     */
+    disposePartial: function() {
+      for (var i = createdBlocks.length - 1; i >= 0; i--) {
+        var block = createdBlocks[i];
+        if (block.workspace) {
+          block.disposedBySubtree_ = true;
+          block.dispose(false, false);
+        }
+      }
+      createdBlocks.length = 0;
+      stack.length = 0;
+      loader.done = true;
     }
-  }
-  if (desc.comment && ctx.comments) {
-    var comment = ctx.comments[desc.comment];
-    if (comment) {
-      Blockly.Xml.applyBlockComment_(block, {
-        id: comment.id,
-        x: comment.x,
-        y: comment.y,
-        w: comment.width,
-        h: comment.height,
-        minimized: !!comment.minimized,
-        pinned: true,
-        text: comment.text
-      });
-    }
-  }
-  for (var inputName in desc.inputs) {
-    var inputDesc = desc.inputs[inputName];
-    // An input with only a shadow is an unoccupied input: the shadow is the
-    // value, exactly as the XML importer treats a <value> with no <block>.
-    var childId = inputDesc.block || inputDesc.shadow;
-    if (!childId) {
-      continue;
-    }
-    var input = block.getInput(inputDesc.name);
-    if (!input) {
-      console.warn('Ignoring non-existent input ' + inputDesc.name +
-          ' in block ' + desc.opcode);
-      continue;
-    }
-    if (inputDesc.shadow && ctx.blocks[inputDesc.shadow]) {
-      input.connection.setShadowDesc(ctx.blocks[inputDesc.shadow], ctx);
-    }
-    var childDesc = ctx.blocks[childId];
-    if (!childDesc) {
-      continue;
-    }
-    var childBlock = Blockly.Xml.descToBlockHeadless_(childDesc, ctx, workspace);
-    if (childBlock.outputConnection) {
-      input.connection.connect(childBlock.outputConnection);
-    } else if (childBlock.previousConnection) {
-      input.connection.connect(childBlock.previousConnection);
-    } else {
-      goog.asserts.fail(
-          'Child block does not have output or previous statement.');
-    }
-  }
-  for (var fieldName in desc.fields) {
-    Blockly.Xml.descToField_(block, desc.fields[fieldName]);
-  }
-  if (desc.next && ctx.blocks[desc.next]) {
-    var nextBlock =
-        Blockly.Xml.descToBlockHeadless_(ctx.blocks[desc.next], ctx, workspace);
-    goog.asserts.assert(block.nextConnection, 'Next statement does not exist.');
-    goog.asserts.assert(nextBlock.previousConnection,
-        'Next block does not have previous statement.');
-    block.nextConnection.connect(nextBlock.previousConnection);
-  }
-  if (desc.shadow) {
-    block.setShadow(true);
-  }
-  return block;
+  };
+  return loader;
 };
 
 /**
@@ -1929,21 +2088,27 @@ Blockly.Xml.clearWorkspaceAndLoadFromDescs = function(xml, descs, workspace) {
  * @param {!Function} callback Called with each description.
  */
 Blockly.Xml.forEachDescBlock = function(desc, ctx, callback) {
-  if (!desc) {
-    return;
-  }
-  callback(desc);
-  for (var inputName in desc.inputs) {
-    var inputDesc = desc.inputs[inputName];
-    if (inputDesc.block) {
-      Blockly.Xml.forEachDescBlock(ctx.blocks[inputDesc.block], ctx, callback);
+  // Iterative walk: a long statement stack is a deep chain, and the recursive
+  // version overflows the call stack at a few thousand blocks.
+  var stack = [desc];
+  while (stack.length) {
+    var current = stack.pop();
+    if (!current) {
+      continue;
     }
-    if (inputDesc.shadow && inputDesc.shadow !== inputDesc.block) {
-      Blockly.Xml.forEachDescBlock(ctx.blocks[inputDesc.shadow], ctx, callback);
+    callback(current);
+    for (var inputName in current.inputs) {
+      var inputDesc = current.inputs[inputName];
+      if (inputDesc.shadow && inputDesc.shadow !== inputDesc.block) {
+        stack.push(ctx.blocks[inputDesc.shadow]);
+      }
+      if (inputDesc.block) {
+        stack.push(ctx.blocks[inputDesc.block]);
+      }
     }
-  }
-  if (desc.next) {
-    Blockly.Xml.forEachDescBlock(ctx.blocks[desc.next], ctx, callback);
+    if (current.next) {
+      stack.push(ctx.blocks[current.next]);
+    }
   }
 };
 

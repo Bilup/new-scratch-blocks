@@ -28,6 +28,7 @@ goog.provide('Blockly.BlockSvg');
 
 goog.require('Blockly.Block');
 goog.require('Blockly.BlockAnimations');
+goog.require('Blockly.CanvasRenderer');
 goog.require('Blockly.ContextMenu');
 goog.require('Blockly.Events.Ui');
 goog.require('Blockly.Events.BlockMove');
@@ -225,6 +226,10 @@ Blockly.BlockSvg.prototype.unselect = function() {
 Blockly.BlockSvg.prototype.setGlowBlock = function(isGlowingBlock) {
   this.isGlowingBlock_ = isGlowingBlock;
   this.updateColour();
+  if (this.workspace && this.workspace.canvasRenderer_) {
+    this.workspace.canvasRenderer_.setBlockPaintOverride(this,
+        isGlowingBlock || this.isGlowingStack_);
+  }
 };
 
 /**
@@ -240,6 +245,10 @@ Blockly.BlockSvg.prototype.setGlowStack = function(isGlowingStack) {
     svg.setAttribute('filter', 'url(#' + stackGlowFilterId + ')');
   } else if (!this.isGlowingStack_ && svg.hasAttribute('filter')) {
     svg.removeAttribute('filter');
+  }
+  if (this.workspace && this.workspace.canvasRenderer_) {
+    this.workspace.canvasRenderer_.setBlockPaintOverride(this,
+        this.isGlowingBlock_ || isGlowingStack);
   }
 };
 
@@ -300,6 +309,7 @@ Blockly.BlockSvg.prototype.setIntersects = function(intersects) {
   } else {
     root.style.display = 'none';
   }
+  Blockly.CanvasRenderer.requestFor(this.workspace);
 };
 
 Blockly.BlockSvg.prototype.updateIntersectionObserver = function() {
@@ -333,9 +343,10 @@ Blockly.BlockSvg.prototype.setParent = function(newParent) {
 
   var svgRoot = this.getSvgRoot();
 
-  // Bail early if workspace is clearing, or we aren't rendered.
-  // We won't need to reattach ourselves anywhere.
-  if (this.workspace.isClearing || !svgRoot) {
+  // Bail early if workspace is clearing, we are bulk-disposing a subtree,
+  // or we aren't rendered. We won't need to reattach ourselves anywhere.
+  if (this.workspace.isClearing || this.workspace.isBulkDisposing_ ||
+      !svgRoot) {
     return;
   }
 
@@ -359,7 +370,7 @@ Blockly.BlockSvg.prototype.setParent = function(newParent) {
     this.workspace.getCanvas().appendChild(svgRoot);
     this.translate(oldXY.x, oldXY.y);
   }
-
+  Blockly.CanvasRenderer.requestFor(this.workspace, true);
 };
 
 /**
@@ -433,6 +444,7 @@ Blockly.BlockSvg.prototype.moveBy = function(dx, dy) {
 Blockly.BlockSvg.prototype.translate = function(x, y) {
   this.getSvgRoot().setAttribute('transform',
       'translate(' + x + ',' + y + ')');
+  Blockly.CanvasRenderer.requestFor(this.workspace, true);
 };
 
 /**
@@ -454,6 +466,10 @@ Blockly.BlockSvg.prototype.moveToDragSurface_ = function() {
   this.workspace.blockDragSurface_.translateSurface(xy.x, xy.y);
   // Execute the move on the top-level SVG component
   this.workspace.blockDragSurface_.setBlocksAndShow(this.getSvgRoot());
+  // Promoted descendants must travel with the subtree while it is dragged.
+  if (this.workspace.canvasRenderer_) {
+    this.workspace.canvasRenderer_.restorePromotedWithin_(this);
+  }
 };
 
 /**
@@ -889,6 +905,7 @@ Blockly.BlockSvg.prototype.dispose = function(healStack, animate) {
   // Stop rerendering.
   this.rendered = false;
 
+  var bulkDisposing = !!blockWorkspace.isBulkDisposing_;
   Blockly.Events.disable();
   try {
     var icons = this.getIcons();
@@ -896,21 +913,106 @@ Blockly.BlockSvg.prototype.dispose = function(healStack, animate) {
       icons[i].dispose();
     }
   } finally {
-    Blockly.Events.enable();
+    if (!bulkDisposing) {
+      Blockly.Events.enable();
+    }
   }
   Blockly.BlockSvg.superClass_.dispose.call(this, healStack);
 
   if (blockWorkspace.intersectionObserver && !blockWorkspace.isClearing) {
     blockWorkspace.intersectionObserver.unobserve(this);
   }
-  if (!blockWorkspace.isClearing) {
+  if (!blockWorkspace.isClearing && !blockWorkspace.isBulkDisposing_) {
+    // A bulk dispose detaches the whole subtree once up front, so tearing down
+    // each block's SVG group one at a time would be redundant work.
     goog.dom.removeNode(this.svgGroup_);
   }
-  blockWorkspace.resizeContents();
+  if (!blockWorkspace.isBulkDisposing_) {
+    // Resizing measures the whole workspace, so it must not run once per block
+    // when a large script is being thrown away.
+    blockWorkspace.resizeContents();
+  }
+  if (blockWorkspace.canvasRenderer_) {
+    blockWorkspace.canvasRenderer_.forgetBlock(this);
+  }
+  Blockly.CanvasRenderer.requestFor(blockWorkspace);
   // Sever JavaScript to DOM connections.
   this.svgGroup_ = null;
   this.svgPath_ = null;
   Blockly.Field.stopCache();
+};
+
+/**
+ * Dispose of this block and everything below it without recursing per block.
+ * A long statement stack is deep enough to overflow the call stack, and every
+ * individual dispose would otherwise trigger a workspace resize.
+ * @package
+ */
+Blockly.BlockSvg.prototype.disposeSubtree = function() {
+  if (!this.workspace) {
+    // Already deleted.
+    return;
+  }
+  var workspace = this.workspace;
+  var blocks = this.getDescendants(false);
+  // Children come after their parents in the descendant list, so disposing in
+  // reverse order disposes leaves first and never touches a live parent.
+  for (var i = 0; i < blocks.length; i++) {
+    blocks[i].disposedBySubtree_ = true;
+  }
+  // Removing one connection at a time is O(n) per removal, so throwing away a
+  // large script would be quadratic. Connections just opt out of the database
+  // and are compacted out of it once at the end, like Workspace.clear does.
+  var dbList = workspace.connectionDBList;
+  if (dbList) {
+    for (var d = 0; d < dbList.length; d++) {
+      if (dbList[d]) {
+        dbList[d].bulkClear_ = true;
+      }
+    }
+  }
+  var eventsWereEnabled = Blockly.Events.isEnabled();
+  if (eventsWereEnabled) {
+    // Disconnecting with events on records a BlockMove for every block, which
+    // repeatedly reads the block's on-screen position.
+    Blockly.Events.disable();
+  }
+  // Detach the whole subtree from the rendered workspace in one operation.
+  // Every block's SVG group lives somewhere inside this root group, so they all
+  // leave the document together and no per-block DOM removal is needed.
+  if (!workspace.isClearing) {
+    var rootSvg = this.getSvgRoot();
+    if (rootSvg && rootSvg.parentNode) {
+      goog.dom.removeNode(rootSvg);
+    }
+  }
+  workspace.isBulkDisposing_ = true;
+  try {
+    for (var j = blocks.length - 1; j >= 0; j--) {
+      blocks[j].dispose(false, false);
+    }
+  } finally {
+    workspace.isBulkDisposing_ = false;
+    if (eventsWereEnabled) {
+      Blockly.Events.enable();
+    }
+    if (dbList) {
+      for (var d = 0; d < dbList.length; d++) {
+        var db = dbList[d];
+        if (!db) {
+          continue;
+        }
+        var kept = [];
+        for (var k = 0; k < db.connections_.length; k++) {
+          if (db.connections_[k].inDB_) {
+            kept.push(db.connections_[k]);
+          }
+        }
+        db.connections_ = kept;
+        db.bulkClear_ = false;
+      }
+    }
+  }
 };
 
 /**

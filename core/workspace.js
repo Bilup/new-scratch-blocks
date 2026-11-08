@@ -707,6 +707,13 @@ Blockly.Workspace.prototype.getVariableMap = function() {
 };
 
 /**
+ * Call *before* modifying scripts that may change procedure return types.
+ * Headless workspaces don't render a toolbox, so there is nothing to do.
+ */
+Blockly.Workspace.prototype.procedureReturnsWillChange = function() {
+};
+
+/**
  * Database of all workspaces.
  * @private
  */

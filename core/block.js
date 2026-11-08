@@ -263,6 +263,7 @@ Blockly.Block.prototype.dispose = function(healStack) {
     // Already deleted.
     return;
   }
+  var bulkDisposing = !!this.workspace.isBulkDisposing_;
   // Terminate onchange event calls.
   if (this.onchangeWrapper_) {
     this.workspace.removeChangeListener(this.onchangeWrapper_);
@@ -291,9 +292,12 @@ Blockly.Block.prototype.dispose = function(healStack) {
       Blockly.selected = null;
     }
 
-    // First, dispose of all my children.
-    for (var i = this.childBlocks_.length - 1; i >= 0; i--) {
-      this.childBlocks_[i].dispose(false);
+    // First, dispose of all my children. A caller that disposes a whole subtree
+    // sets disposedBySubtree_ so that this does not recurse once per block.
+    if (!this.disposedBySubtree_) {
+      for (var i = this.childBlocks_.length - 1; i >= 0; i--) {
+        this.childBlocks_[i].dispose(false);
+      }
     }
     // Then dispose of myself.
     // Dispose of all inputs and their fields.
@@ -311,7 +315,10 @@ Blockly.Block.prototype.dispose = function(healStack) {
       connections[i].dispose();
     }
   } finally {
-    Blockly.Events.enable();
+    if (!bulkDisposing) {
+      // A bulk dispose keeps events off for the whole subtree.
+      Blockly.Events.enable();
+    }
   }
 };
 
@@ -599,12 +606,22 @@ Blockly.Block.prototype.setParent = function(newParent) {
  * @return {!Array.<!Blockly.Block>} Flattened array of blocks.
  */
 Blockly.Block.prototype.getDescendants = function(ordered, opt_ignoreShadows) {
-  var blocks = [this];
-  var childBlocks = this.getChildren(ordered);
-  for (var child, i = 0; child = childBlocks[i]; i++) {
-    if (!opt_ignoreShadows || !child.isShadow_) {
-      blocks.push.apply(
-          blocks, child.getDescendants(ordered, opt_ignoreShadows));
+  // Iterative rather than recursive: a long stack of statements is a deep
+  // chain, and both the call stack and the repeated array concatenation used
+  // by the recursive version fall over at a few thousand blocks.
+  var blocks = [];
+  var stack = [this];
+  while (stack.length) {
+    var block = stack.pop();
+    blocks.push(block);
+    var childBlocks = block.getChildren(ordered);
+    // Pushed in reverse so that the first child is visited first.
+    for (var i = childBlocks.length - 1; i >= 0; i--) {
+      var child = childBlocks[i];
+      if (opt_ignoreShadows && child.isShadow_) {
+        continue;
+      }
+      stack.push(child);
     }
   }
   return blocks;
@@ -713,28 +730,34 @@ Blockly.Block.prototype.setEditable = function(editable) {
  * @param {boolean} hidden True if connections are hidden.
  */
 Blockly.Block.prototype.setConnectionsHidden = function(hidden) {
-  if (!hidden && this.isCollapsed()) {
-    if (this.outputConnection) {
-      this.outputConnection.setHidden(hidden);
-    }
-    if (this.previousConnection) {
-      this.previousConnection.setHidden(hidden);
-    }
-    if (this.nextConnection) {
-      this.nextConnection.setHidden(hidden);
-      var child = this.nextConnection.targetBlock();
-      if (child) {
-        child.setConnectionsHidden(hidden);
+  // Walk the subtree iteratively. Statements form one long chain, so the
+  // recursive version overflows the call stack on large stacks.
+  var stack = [this];
+  while (stack.length) {
+    var block = stack.pop();
+    if (!hidden && block.isCollapsed()) {
+      if (block.outputConnection) {
+        block.outputConnection.setHidden(hidden);
       }
-    }
-  } else {
-    var myConnections = this.getConnections_(true);
-    for (var i = 0, connection; connection = myConnections[i]; i++) {
-      connection.setHidden(hidden);
-      if (connection.isSuperior()) {
-        var child = connection.targetBlock();
-        if (child) {
-          child.setConnectionsHidden(hidden);
+      if (block.previousConnection) {
+        block.previousConnection.setHidden(hidden);
+      }
+      if (block.nextConnection) {
+        block.nextConnection.setHidden(hidden);
+        var collapsedChild = block.nextConnection.targetBlock();
+        if (collapsedChild) {
+          stack.push(collapsedChild);
+        }
+      }
+    } else {
+      var myConnections = block.getConnections_(true);
+      for (var i = 0, connection; connection = myConnections[i]; i++) {
+        connection.setHidden(hidden);
+        if (connection.isSuperior()) {
+          var child = connection.targetBlock();
+          if (child) {
+            stack.push(child);
+          }
         }
       }
     }
