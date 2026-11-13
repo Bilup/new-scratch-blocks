@@ -864,6 +864,18 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
   // The margins are sized so that the rendered region's area is
   // 1 + VIRTUAL_VIEWPORT_AREA_FACTOR times the viewport's own area.
   var scriptDistance = function(script, viewport) {
+    if (script.loaded && script.topBlock && script.topBlock.workspace &&
+        script.topBlock.getHeightWidth) {
+      // Blocks may have been added below since this script was measured. The
+      // estimate decides both when it is unloaded and when it is loaded back,
+      // so a stale one can judge a script that is still on screen (its tail)
+      // to be far away and leave it unrendered.
+      var renderedHeight = script.topBlock.getHeightWidth().height;
+      if (renderedHeight > 0) {
+        script.rows = Math.ceil(renderedHeight /
+            Blockly.Xml.DEFERRED_BLOCK_HEIGHT_ESTIMATE);
+      }
+    }
     var left = workspace.RTL ? script.x - phWidth : script.x;
     var right = left + phWidth;
     var bottom = script.y + scriptHeight(script);
@@ -884,6 +896,11 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     for (var i = scripts.length - 1; i >= 0; i--) {
       var script = scripts[i];
       if (script.loaded) {
+        continue;
+      }
+      if (script.failures >= 3 && now() - script.lastAttempt < 5000) {
+        // Repeated build failures: leave the placeholder where the script is
+        // and try again later instead of hammering the build every frame.
         continue;
       }
       if (!isStillOurs(script)) {
@@ -932,7 +949,35 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         }
       } catch (e) {
         console.warn('Deferred block materialization failed.', e);
-        dropScript(script);
+        // Start over instead of dropping the script right away: dropping
+        // removes its placeholder, so a failure part-way through a long script
+        // leaves a hole in the workspace that nothing ever fills again.
+        var partial = script.builder;
+        script.builder = null;
+        script.topBlock = null;
+        script.blocks = null;
+        script.blockIndex = -1;
+        script.phase = -1;
+        if (partial) {
+          // The half-built blocks carry the project's block IDs, so throw them
+          // away silently: a delete event here would reach the VM and destroy
+          // the real script.
+          var eventsWereEnabled = Blockly.Events.isEnabled();
+          if (eventsWereEnabled) {
+            Blockly.Events.disable();
+          }
+          try {
+            partial.disposePartial();
+          } catch (cleanupError) {
+            console.warn('Deferred script cleanup failed.', cleanupError);
+          } finally {
+            if (eventsWereEnabled) {
+              Blockly.Events.enable();
+            }
+          }
+        }
+        script.failures = (script.failures || 0) + 1;
+        script.lastAttempt = now();
         return;
       }
       script.phase = 0;
@@ -942,15 +987,20 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     var topBlock = script.topBlock;
     try {
       if (script.phase === 2) {
+        // Reveal the script before doing the expensive per-block work below.
+        // On very long scripts those calls can throw, and hiding the script
+        // behind them left it marked as loaded yet invisible forever.
+        var svgRoot = topBlock.getSvgRoot();
+        if (svgRoot) {
+          svgRoot.style.visibility = '';
+          svgRoot.style.display = '';
+        }
+        topBlock.intersects_ = true;
         topBlock.setConnectionsHidden(false);
         topBlock.updateDisabled();
         if (workspace.restoreGlows) {
           // It may have been running the whole time it was unloaded.
           workspace.restoreGlows(topBlock);
-        }
-        var svgRoot = topBlock.getSvgRoot();
-        if (svgRoot) {
-          svgRoot.style.visibility = '';
         }
       } else {
         var block = script.blocks[script.blockIndex];
