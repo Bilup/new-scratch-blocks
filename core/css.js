@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @license
  * Visual Blocks Editor
  *
@@ -393,6 +393,9 @@ Blockly.Css.CONTENT = [
   '}',
 
   '.blocklyScriptPlaceholder {',
+    // A placeholder marks where an unloaded script is; it must not intercept
+    // clicks meant for blocks or the workspace underneath it.
+    'pointer-events: none;',
     'fill: rgba(127, 127, 127, 0.12);',
     'stroke: rgba(127, 127, 127, 0.25);',
     'stroke-dasharray: 6 4;',

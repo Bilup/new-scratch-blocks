@@ -159,38 +159,56 @@ Blockly.utils.isTargetInput = function(e) {
  * @return {!goog.math.Coordinate} Object with .x and .y properties.
  */
 Blockly.utils.getRelativeXY = function(element) {
-  var xy = new goog.math.Coordinate(0, 0);
-  // First, check for x and y attributes.
+  // Read the attributes first so the cache below can be validated against the
+  // exact strings.  Callers walk whole DOM ancestor chains on every render, so
+  // caching the parsed numbers avoids repeating the same regex work.
   var x = element.getAttribute('x');
-  if (x) {
-    xy.x = parseInt(x, 10);
-  }
   var y = element.getAttribute('y');
+  var transform = element.getAttribute('transform');
+  var style = element.getAttribute('style');
+  var cache = element.relativeXYCache_;
+  if (cache && cache.x === x && cache.y === y &&
+      cache.transform === transform && cache.style === style) {
+    // Return a fresh coordinate: callers are allowed to mutate the result.
+    return new goog.math.Coordinate(cache.relativeX, cache.relativeY);
+  }
+  var relativeX = 0;
+  var relativeY = 0;
+  // First, check for x and y attributes.
+  if (x) {
+    relativeX = parseInt(x, 10);
+  }
   if (y) {
-    xy.y = parseInt(y, 10);
+    relativeY = parseInt(y, 10);
   }
   // Second, check for transform="translate(...)" attribute.
-  var transform = element.getAttribute('transform');
   var r = transform && transform.match(Blockly.utils.getRelativeXY.XY_REGEX_);
   if (r) {
-    xy.x += parseFloat(r[1]);
+    relativeX += parseFloat(r[1]);
     if (r[3]) {
-      xy.y += parseFloat(r[3]);
+      relativeY += parseFloat(r[3]);
     }
   }
 
   // Then check for style = transform: translate(...) or translate3d(...)
-  var style = element.getAttribute('style');
   if (style && style.indexOf('translate') > -1) {
     var styleComponents = style.match(Blockly.utils.getRelativeXY.XY_STYLE_REGEX_);
     if (styleComponents) {
-      xy.x += parseFloat(styleComponents[1]);
+      relativeX += parseFloat(styleComponents[1]);
       if (styleComponents[3]) {
-        xy.y += parseFloat(styleComponents[3]);
+        relativeY += parseFloat(styleComponents[3]);
       }
     }
   }
-  return xy;
+  element.relativeXYCache_ = {
+    x: x,
+    y: y,
+    transform: transform,
+    style: style,
+    relativeX: relativeX,
+    relativeY: relativeY
+  };
+  return new goog.math.Coordinate(relativeX, relativeY);
 };
 
 /**

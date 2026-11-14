@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @license
  * Visual Blocks Editor
  *
@@ -982,6 +982,19 @@ Blockly.BlockSvg.prototype.disposeSubtree = function() {
   // leave the document together and no per-block DOM removal is needed.
   if (!workspace.isClearing) {
     var rootSvg = this.getSvgRoot();
+    // The canvas renderer may have promoted visible descendants of a culled
+    // script directly onto the workspace canvas. Those groups are not inside
+    // rootSvg, and the bulk dispose below skips per-block DOM removal, so take
+    // them out here or they stay behind as ghost blocks.
+    var canvas = workspace.getCanvas ? workspace.getCanvas() : null;
+    if (canvas) {
+      for (var b = 0; b < blocks.length; b++) {
+        var blockSvg = blocks[b].getSvgRoot ? blocks[b].getSvgRoot() : null;
+        if (blockSvg && blockSvg !== rootSvg && blockSvg.parentNode === canvas) {
+          goog.dom.removeNode(blockSvg);
+        }
+      }
+    }
     if (rootSvg && rootSvg.parentNode) {
       goog.dom.removeNode(rootSvg);
     }
