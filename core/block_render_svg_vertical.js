@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @license
  * Visual Blocks Editor
  *
@@ -581,12 +581,6 @@ Blockly.BlockSvg.prototype.updateColour = function() {
     icons[i].updateColour();
   }
 
-  // Bump every dropdown to change its colour.
-  for (var x = 0, input; input = this.inputList[x]; x++) {
-    for (var y = 0, field; field = input.fieldRow[y]; y++) {
-      field.setText(null);
-    }
-  }
   Blockly.CanvasRenderer.requestFor(this.workspace);
 };
 
@@ -875,9 +869,13 @@ Blockly.BlockSvg.prototype.renderCompute_ = function(iconWidth) {
         var bBox = linkedBlock.getHeightWidth();
         paddedHeight = bBox.height;
         paddedWidth = bBox.width;
+        // Keep the measurement so the drawing pass can reuse it instead of
+        // walking the same next-block chain a second time.
+        input.targetBlockBBox_ = bBox;
       } else {
         // No block connected - use the size of the rendered empty input shape.
         paddedHeight = Blockly.BlockSvg.INPUT_SHAPE_HEIGHT;
+        input.targetBlockBBox_ = null;
       }
       if (input.connection.type === Blockly.INPUT_VALUE) {
         paddedHeight += 2 * Blockly.BlockSvg.INLINE_PADDING_Y;
@@ -1251,10 +1249,16 @@ Blockly.BlockSvg.prototype.renderClassify_ = function() {
     }
   }
 
-  this.svgGroup_.setAttribute('data-shapes', shapes.join(' '));
+  var shapesString = shapes.join(' ');
+  if (shapesString !== this.renderedShapes_) {
+    this.renderedShapes_ = shapesString;
+    this.svgGroup_.setAttribute('data-shapes', shapesString);
+  }
 
-  if (this.getCategory()) {
-    this.svgGroup_.setAttribute('data-category', this.getCategory());
+  var category = this.getCategory();
+  if (category && category !== this.renderedCategory_) {
+    this.renderedCategory_ = category;
+    this.svgGroup_.setAttribute('data-category', category);
   }
 };
 
@@ -1393,8 +1397,10 @@ Blockly.BlockSvg.prototype.renderDrawRight_ = function(steps,
       connectionX = this.RTL ? -cursorX : cursorX;
       input.connection.setOffsetInBlock(connectionX, cursorY);
       if (input.connection.isConnected()) {
+        var targetBBox = input.targetBlockBBox_ ||
+          input.connection.targetBlock().getHeightWidth();
         this.width = Math.max(this.width, inputRows.statementEdge +
-          input.connection.targetBlock().getHeightWidth().width);
+          targetBBox.width);
       }
       if (this.type != Blockly.PROCEDURES_DEFINITION_BLOCK_TYPE &&
         (y == inputRows.length - 1 ||
@@ -1745,8 +1751,10 @@ Blockly.BlockSvg.prototype.renderDefineBlock_ = function(steps, inputRows,
   // Figure out where the right side of the block is.
   var rightSide = inputRows.rightEdge;
   if (input.connection && input.connection.targetBlock()) {
+    var targetBBox = input.targetBlockBBox_ ||
+        input.connection.targetBlock().getHeightWidth();
     rightSide = inputRows.statementEdge +
-        input.connection.targetBlock().getHeightWidth().width +
+        targetBBox.width +
         Blockly.BlockSvg.DEFINE_BLOCK_PADDING_RIGHT;
   } else {
     // Handles the case where block is being rendered as an insertion marker

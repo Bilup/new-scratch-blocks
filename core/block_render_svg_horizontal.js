@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @license
  * Visual Blocks Editor
  *
@@ -321,12 +321,6 @@ Blockly.BlockSvg.prototype.updateColour = function() {
   // Render opacity
   this.svgPath_.setAttribute('fill-opacity', this.getOpacity());
 
-  // Bump every dropdown to change its colour.
-  for (var x = 0, input; input = this.inputList[x]; x++) {
-    for (var y = 0, field; field = input.fieldRow[y]; y++) {
-      field.setText(null);
-    }
-  }
   Blockly.CanvasRenderer.requestFor(this.workspace);
 };
 
@@ -640,10 +634,16 @@ Blockly.BlockSvg.prototype.renderClassify_ = function(metrics) {
     }
   }
 
-  this.svgGroup_.setAttribute('data-shapes', shapes.join(' '));
+  var shapesString = shapes.join(' ');
+  if (shapesString !== this.renderedShapes_) {
+    this.renderedShapes_ = shapesString;
+    this.svgGroup_.setAttribute('data-shapes', shapesString);
+  }
 
-  if (this.getCategory()) {
-    this.svgGroup_.setAttribute('data-category', this.getCategory());
+  var category = this.getCategory();
+  if (category && category !== this.renderedCategory_) {
+    this.renderedCategory_ = category;
+    this.svgGroup_.setAttribute('data-category', category);
   }
 };
 

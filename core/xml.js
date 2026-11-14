@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @license
  * Visual Blocks Editor
  *
@@ -499,6 +499,24 @@ Blockly.Xml.clearWorkspaceAndLoadFromXmlDeferred = function(xml, workspace,
 Blockly.Xml.domToWorkspaceDeferred = function(xml, workspace, opt_callbacks,
     opt_descs) {
   var callbacks = opt_callbacks || {};
+  if (opt_descs && xml && typeof xml.cloneNode === 'function') {
+    // Descriptions are authoritative when they are supplied. An XML document
+    // that still carries top-level blocks would load every script twice, once
+    // from the XML and once from its description, leaving two blocks with the
+    // same id on the workspace.
+    var header = xml.cloneNode(true);
+    var stale = [];
+    for (var c = 0; c < header.childNodes.length; c++) {
+      var childName = header.childNodes[c].nodeName.toLowerCase();
+      if (childName == 'block' || childName == 'shadow') {
+        stale.push(header.childNodes[c]);
+      }
+    }
+    for (var staleIndex = 0; staleIndex < stale.length; staleIndex++) {
+      goog.dom.removeNode(stale[staleIndex]);
+    }
+    xml = header;
+  }
   if (!workspace.rendered) {
     var blockIds = Blockly.Xml.domToWorkspace(xml, workspace);
     if (opt_descs) {
@@ -628,6 +646,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
   var phWidth = Blockly.Xml.DEFERRED_SCRIPT_WIDTH_ESTIMATE;
   var cancelled = false;
   var scheduled = false;
+  var settled = false;
   var processFrame;
   var settle;
   var announcedDone = false;
@@ -728,11 +747,16 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       topBlock = script.builder.rootBlock;
       script.builder = null;
     } else {
-      Blockly.Events.disable();
+      var eventsWereEnabled = Blockly.Events.isEnabled();
+      if (eventsWereEnabled) {
+        Blockly.Events.disable();
+      }
       try {
         topBlock = Blockly.Xml.domToBlockHeadless_(script.xmlNode, workspace);
       } finally {
-        Blockly.Events.enable();
+        if (eventsWereEnabled) {
+          Blockly.Events.enable();
+        }
       }
     }
     script.topBlock = topBlock;
@@ -758,15 +782,17 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
   // Throw away a script's blocks and put its placeholder back. The blocks live
   // on in the VM, which is what everything is actually built from, so this only
   // discards a view of them. Events stay off: the VM must not hear a delete.
+  // Returns false when the blocks could not be disposed, in which case the
+  // script stays tracked and rendered rather than being reloaded on top of the
+  // remains (two blocks with the same id on one workspace).
   var unloadScript = function(script) {
     var topBlock = script.topBlock;
-    script.topBlock = null;
-    script.blocks = null;
-    script.phase = -1;
-    script.blockIndex = -1;
-    script.loaded = false;
     if (topBlock && topBlock.workspace) {
-      Blockly.Events.disable();
+      var eventsWereEnabled = Blockly.Events.isEnabled();
+      var disposeFailed = false;
+      if (eventsWereEnabled) {
+        Blockly.Events.disable();
+      }
       try {
         if (topBlock.disposeSubtree) {
           topBlock.disposeSubtree();
@@ -775,10 +801,25 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         }
       } catch (e) {
         console.warn('Unloading an offscreen script failed.', e);
+        // The root is gone when disposal got past removing it; only a failure
+        // that left the block alive needs to be retried later.
+        disposeFailed = !!topBlock.workspace;
       } finally {
-        Blockly.Events.enable();
+        if (eventsWereEnabled) {
+          Blockly.Events.enable();
+        }
+      }
+      if (disposeFailed) {
+        // Nothing was removed; try again after the unload delay.
+        script.lastNear = now();
+        return false;
       }
     }
+    script.topBlock = null;
+    script.blocks = null;
+    script.phase = -1;
+    script.blockIndex = -1;
+    script.loaded = false;
     // The user may have dragged it somewhere since it was loaded.
     if (script.desc) {
       if (typeof script.desc.x === 'number') {
@@ -791,6 +832,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
     addPlaceholder(script);
     boundsDirty = true;
+    return true;
   };
 
   var canUnload = function(script) {
@@ -808,6 +850,39 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     if (Blockly.selected && Blockly.selected.workspace === workspace &&
         Blockly.selected.getRootBlock() === script.topBlock) {
       return false;
+    }
+    // A field editor, dropdown or context menu is anchored to a block. Pulling
+    // that block out from under it would close the editor and throw away what
+    // the user is typing, so keep the script rendered while one is open.
+    if (Blockly.WidgetDiv && typeof Blockly.WidgetDiv.isVisible === 'function' &&
+        Blockly.WidgetDiv.isVisible()) {
+      return false;
+    }
+    if (Blockly.DropDownDiv &&
+        typeof Blockly.DropDownDiv.isVisible === 'function' &&
+        Blockly.DropDownDiv.isVisible()) {
+      return false;
+    }
+    if (Blockly.ContextMenu && Blockly.ContextMenu.currentBlock) {
+      var menuBlock = Blockly.ContextMenu.currentBlock;
+      var menuRoot = menuBlock.getRootBlock ?
+          menuBlock.getRootBlock() : menuBlock;
+      if (menuRoot === script.topBlock) {
+        return false;
+      }
+    }
+    if (typeof document !== 'undefined' && document.activeElement) {
+      var active = document.activeElement;
+      // Comment bubbles keep a textarea in the document while being edited.
+      if (active.tagName === 'TEXTAREA' && active.className &&
+          String(active.className).indexOf('ommentTextarea') !== -1) {
+        return false;
+      }
+      var svgRoot = script.topBlock.getSvgRoot ?
+          script.topBlock.getSvgRoot() : null;
+      if (svgRoot && svgRoot.contains && svgRoot.contains(active)) {
+        return false;
+      }
     }
     return true;
   };
@@ -953,12 +1028,21 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         // removes its placeholder, so a failure part-way through a long script
         // leaves a hole in the workspace that nothing ever fills again.
         var partial = script.builder;
+        var partialTop = script.topBlock;
+        // The XML path can fail before script.topBlock is assigned, but the
+        // headless importer has already created a block under the XML id.
+        var strayTop = null;
+        if (!partial && !partialTop && !script.desc && script.xmlNode) {
+          var strayId = script.xmlNode.getAttribute('id');
+          strayTop = strayId ? workspace.getBlockById(strayId) : null;
+        }
         script.builder = null;
         script.topBlock = null;
         script.blocks = null;
         script.blockIndex = -1;
         script.phase = -1;
-        if (partial) {
+        if (partial || (partialTop && partialTop.workspace) ||
+            (strayTop && strayTop.workspace)) {
           // The half-built blocks carry the project's block IDs, so throw them
           // away silently: a delete event here would reach the VM and destroy
           // the real script.
@@ -967,7 +1051,17 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
             Blockly.Events.disable();
           }
           try {
-            partial.disposePartial();
+            if (partial) {
+              partial.disposePartial();
+            } else {
+              var doomed = (partialTop && partialTop.workspace) ?
+                  partialTop : strayTop;
+              if (doomed.disposeSubtree) {
+                doomed.disposeSubtree();
+              } else {
+                doomed.dispose(false, false);
+              }
+            }
           } catch (cleanupError) {
             console.warn('Deferred script cleanup failed.', cleanupError);
           } finally {
@@ -1074,6 +1168,15 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
 
   // Nothing near the viewport is waiting to load.
   settle = function() {
+    // processFrame() calls settle() whenever nothing near the viewport is
+    // waiting, and settle() calls queueIntersectionCheck(), which wakes the
+    // loader again through wakeVirtualScripts_. Without this guard that turns
+    // into an endless run of animation frames which keeps re-measuring the
+    // workspace and resizing the scrollbars after everything has loaded.
+    if (settled) {
+      return;
+    }
+    settled = true;
     workspace.deferredRenderActive = false;
     if (workspace.rendered && workspace.setResizesEnabled) {
       workspace.setResizesEnabled(true);
@@ -1105,6 +1208,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
     var unloadDist = Blockly.Xml.VIRTUAL_UNLOAD_SCREENS;
     var t = now();
+    var rtlWidth = workspace.RTL ? workspace.getWidth() : 0;
     var changed = false;
     for (var i = scripts.length - 1; i >= 0; i--) {
       var script = scripts[i];
@@ -1119,6 +1223,17 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       }
       if (!script.hasPosition) {
         continue;
+      }
+      // The user may have dragged the script since it was rendered. The VM
+      // description is live, so read the current position from it before
+      // deciding how far away the script really is.
+      if (script.desc) {
+        if (typeof script.desc.x === 'number') {
+          script.x = rtlWidth ? rtlWidth - script.desc.x : script.desc.x;
+        }
+        if (typeof script.desc.y === 'number') {
+          script.y = script.desc.y;
+        }
       }
       if (Blockly.Xml.VIRTUAL_CULLING_ENABLED === false) {
         // Culling is off. Keep the recency stamp fresh so that turning it back
@@ -1137,8 +1252,9 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         script.lastNear = t;
         continue;
       }
-      unloadScript(script);
-      changed = true;
+      if (unloadScript(script)) {
+        changed = true;
+      }
     }
     if (changed) {
       updateBounds();
@@ -1208,7 +1324,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
   workspace.getUnloadedBlockCount = function() {
     var count = 0;
     for (var i = 0; i < scripts.length; i++) {
-      if (!scripts[i].loaded) {
+      // A script that is part-way through being built already has its blocks in
+      // the workspace, so getAllBlocks() counts them. Only count the ones that
+      // have not been created at all, or the total is inflated while loading.
+      if (!scripts[i].loaded && scripts[i].phase === -1) {
         count += scripts[i].visible;
       }
     }
@@ -1244,6 +1363,14 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     } finally {
       Blockly.Field.stopCache();
     }
+    // Everything was rendered on purpose, so restart the unload delay for all
+    // of it. Otherwise the next sweep would throw it straight away again: the
+    // recency stamps still say these scripts have been off screen for a while.
+    for (var n = 0; n < scripts.length; n++) {
+      if (scripts[n].loaded) {
+        scripts[n].lastNear = now();
+      }
+    }
     updateBounds();
     if (workspace.rendered) {
       workspace.resizeContents();
@@ -1251,6 +1378,48 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
   };
   workspace.wakeVirtualScripts_ = wake;
+
+  /**
+   * Drop a script whose blocks were only partially built when the loader was
+   * cancelled (tab closed, workspace replaced, project reloaded). Its blocks
+   * are a view of project blocks that still exist in the VM, so removing them
+   * has to stay silent for the VM.
+   * @param {!Object} script Script record being discarded.
+   */
+  var discardPartialScript = function(script) {
+    if (script.builder) {
+      try {
+        script.builder.disposePartial();
+      } catch (e) {
+        console.warn('Discarding a partial script failed.', e);
+      }
+      script.builder = null;
+    }
+    var topBlock = script.topBlock;
+    script.topBlock = null;
+    script.blocks = null;
+    script.phase = -1;
+    script.blockIndex = -1;
+    if (topBlock && topBlock.workspace && !script.loaded) {
+      var eventsWereEnabled = Blockly.Events.isEnabled();
+      if (eventsWereEnabled) {
+        Blockly.Events.disable();
+      }
+      try {
+        if (topBlock.disposeSubtree) {
+          topBlock.disposeSubtree();
+        } else {
+          topBlock.dispose(false, false);
+        }
+      } catch (e) {
+        console.warn('Discarding a partial script failed.', e);
+      } finally {
+        if (eventsWereEnabled) {
+          Blockly.Events.enable();
+        }
+      }
+    }
+  };
 
   for (var i = 0; i < scripts.length; i++) {
     scripts[i].loaded = false;
@@ -1269,6 +1438,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     workspace.materializeAllScripts = null;
     workspace.wakeVirtualScripts_ = null;
     for (var i = 0; i < scripts.length; i++) {
+      discardPartialScript(scripts[i]);
       removePlaceholder(scripts[i]);
     }
     if (sweepTimer !== null) {
@@ -2022,18 +2192,31 @@ Blockly.Xml.createDescLoader_ = function(desc, ctx, workspace) {
     /**
      * Throw away everything created so far. Only needed if the script is
      * dropped or unloaded while it is still being built.
+     *
+     * The blocks carry the project's block IDs, so disposal must stay silent:
+     * a BlockDelete event here would reach the VM and destroy the real script.
      */
     disposePartial: function() {
-      for (var i = createdBlocks.length - 1; i >= 0; i--) {
-        var block = createdBlocks[i];
-        if (block.workspace) {
-          block.disposedBySubtree_ = true;
-          block.dispose(false, false);
+      var eventsWereEnabled = Blockly.Events.isEnabled();
+      if (eventsWereEnabled) {
+        Blockly.Events.disable();
+      }
+      try {
+        for (var i = createdBlocks.length - 1; i >= 0; i--) {
+          var block = createdBlocks[i];
+          if (block.workspace) {
+            block.disposedBySubtree_ = true;
+            block.dispose(false, false);
+          }
+        }
+      } finally {
+        createdBlocks.length = 0;
+        stack.length = 0;
+        loader.done = true;
+        if (eventsWereEnabled) {
+          Blockly.Events.enable();
         }
       }
-      createdBlocks.length = 0;
-      stack.length = 0;
-      loader.done = true;
     }
   };
   return loader;
