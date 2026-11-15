@@ -272,7 +272,12 @@ Blockly.Block.prototype.dispose = function(healStack) {
   if (Blockly.Events.isEnabled()) {
     Blockly.Events.fire(new Blockly.Events.BlockDelete(this));
   }
-  Blockly.Events.disable();
+  if (!bulkDisposing) {
+    // A bulk dispose already switched events off for the whole subtree; the
+    // per-block disable would be an unmatched increment that keeps events off
+    // after the subtree is gone.
+    Blockly.Events.disable();
+  }
 
   try {
     // This block is now at the top of the workspace.

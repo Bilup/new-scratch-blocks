@@ -792,13 +792,27 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       svgRoot.style.visibility = 'hidden';
     }
     if (script.hasPosition) {
-      topBlock.moveBy(script.x, script.y);
-      if (topBlock.comment && typeof topBlock.comment === 'object') {
-        var commentXY = topBlock.comment.getXY();
-        var commentWidth = topBlock.comment.getBubbleSize().width;
-        topBlock.comment.moveTo(workspace.RTL ?
-          workspace.getWidth() - commentXY.x - commentWidth : commentXY.x,
-        commentXY.y);
+      // Placing the freshly built view of the script is not a user move. Letting
+      // it fire a move event would put a phantom entry on the undo stack every
+      // time a script was loaded back in, and would make the VM rewrite
+      // coordinates it already has.
+      var placementEventsEnabled = Blockly.Events.isEnabled();
+      if (placementEventsEnabled) {
+        Blockly.Events.disable();
+      }
+      try {
+        topBlock.moveBy(script.x, script.y);
+        if (topBlock.comment && typeof topBlock.comment === 'object') {
+          var commentXY = topBlock.comment.getXY();
+          var commentWidth = topBlock.comment.getBubbleSize().width;
+          topBlock.comment.moveTo(workspace.RTL ?
+            workspace.getWidth() - commentXY.x - commentWidth : commentXY.x,
+          commentXY.y);
+        }
+      } finally {
+        if (placementEventsEnabled) {
+          Blockly.Events.enable();
+        }
       }
     }
     return true;
