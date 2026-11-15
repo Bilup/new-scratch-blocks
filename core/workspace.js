@@ -305,6 +305,25 @@ Blockly.Workspace.prototype.getTopFrames = function() {
 };
 
 /**
+ * Whether a block is currently swallowed by a collapsed frame. Such a block is
+ * hidden on purpose, so anything that shows blocks again (viewport culling, for
+ * instance) has to leave it alone until the frame is expanded.
+ * @param {!Blockly.Block} block The block to test.
+ * @return {boolean} True when a collapsed frame counts the block as its own.
+ * @package
+ */
+Blockly.Workspace.prototype.isBlockInCollapsedFrame = function(block) {
+  var frames = this.topFrames_ || [];
+  for (var i = 0; i < frames.length; i++) {
+    var frame = frames[i];
+    if (frame.isCollapsed() && frame.getBlockIds().indexOf(block.id) != -1) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
  * Find the frame on this workspace with the specified ID.
  * @param {string} id ID of frame to find.
  * @return {Blockly.Frame} The sought after frame or null if not found.
@@ -535,41 +554,45 @@ Blockly.Workspace.prototype.undo = function(redo) {
   // loader has not rendered yet would be skipped, leaving the workspace and
   // the VM out of step. Render them first, through the same entry point as the
   // menu bar, so the keyboard shortcuts cannot bypass that check.
-  if (typeof this.materializeAllScripts === 'function') {
-    this.materializeAllScripts();
-  }
-  var inputStack = redo ? this.redoStack_ : this.undoStack_;
-  var outputStack = redo ? this.undoStack_ : this.redoStack_;
-  var inputEvent = inputStack.pop();
-  if (!inputEvent) {
-    return;
-  }
-  var events = [inputEvent];
-  // Do another undo/redo if the next one is of the same group.
-  while (inputStack.length && inputEvent.group &&
-      inputEvent.group == inputStack[inputStack.length - 1].group) {
-    events.push(inputStack.pop());
-  }
-  // Push these popped events on the opposite stack.
-  for (var i = 0, event; event = events[i]; i++) {
-    outputStack.push(event);
-  }
-  events = Blockly.Events.filter(events, redo);
+  //
+  // Rendering must not add events of its own to either stack, so undo recording
+  // stays off from before that work until the replay is over.
+  var recordUndoWasEnabled = Blockly.Events.recordUndo;
   Blockly.Events.recordUndo = false;
-  if (Blockly.selected) {
-    Blockly.Events.disable();
-    try {
-      Blockly.selected.unselect();
-    } finally {
-      Blockly.Events.enable();
-    }
-  }
   try {
+    if (typeof this.materializeAllScripts === 'function') {
+      this.materializeAllScripts();
+    }
+    var inputStack = redo ? this.redoStack_ : this.undoStack_;
+    var outputStack = redo ? this.undoStack_ : this.redoStack_;
+    var inputEvent = inputStack.pop();
+    if (!inputEvent) {
+      return;
+    }
+    var events = [inputEvent];
+    // Do another undo/redo if the next one is of the same group.
+    while (inputStack.length && inputEvent.group &&
+        inputEvent.group == inputStack[inputStack.length - 1].group) {
+      events.push(inputStack.pop());
+    }
+    // Push these popped events on the opposite stack.
+    for (var i = 0, event; event = events[i]; i++) {
+      outputStack.push(event);
+    }
+    events = Blockly.Events.filter(events, redo);
+    if (Blockly.selected) {
+      Blockly.Events.disable();
+      try {
+        Blockly.selected.unselect();
+      } finally {
+        Blockly.Events.enable();
+      }
+    }
     for (var i = 0, event; event = events[i]; i++) {
       event.run(redo);
     }
   } finally {
-    Blockly.Events.recordUndo = true;
+    Blockly.Events.recordUndo = recordUndoWasEnabled;
   }
 };
 

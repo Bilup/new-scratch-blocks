@@ -305,7 +305,12 @@ Blockly.BlockSvg.prototype.setIntersects = function(intersects) {
     return;
   }
   if (intersects) {
-    root.style.display = '';
+    // Blocks swallowed by a collapsed frame are hidden on purpose; scrolling
+    // them into view must not bring them back.
+    if (!this.workspace.isBlockInCollapsedFrame ||
+        !this.workspace.isBlockInCollapsedFrame(this)) {
+      root.style.display = '';
+    }
   } else {
     root.style.display = 'none';
   }
@@ -906,7 +911,9 @@ Blockly.BlockSvg.prototype.dispose = function(healStack, animate) {
   this.rendered = false;
 
   var bulkDisposing = !!blockWorkspace.isBulkDisposing_;
-  Blockly.Events.disable();
+  if (!bulkDisposing) {
+    Blockly.Events.disable();
+  }
   try {
     var icons = this.getIcons();
     for (var i = 0; i < icons.length; i++) {
