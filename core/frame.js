@@ -605,6 +605,13 @@ Blockly.Frame.prototype.dragMembersTo_ = function(x, y) {
  */
 Blockly.Frame.prototype.setDragging = function(adding) {
   if (adding) {
+    if (this.workspace.materializeScriptsInRect) {
+      // The scripts travelling with the frame have to exist to be moved. This
+      // runs on mouse-down, so skip the scrollbar refresh: the drag captured
+      // its metrics before this point.
+      this.workspace.materializeScriptsInRect(
+          this.xy_.x, this.xy_.y, this.width_, this.height_, true);
+    }
     this.bringToFront();
     this.dragMembers_ = this.getMembers();
     this.lastDragXY_ = this.getXY();
@@ -817,6 +824,14 @@ Blockly.Frame.prototype.setCollapsed = function(collapsed) {
   if (this.collapsed_ == collapsed) {
     return;
   }
+  if (this.workspace.materializeScriptsInRect) {
+    // Collapsing records which scripts the frame swallowed and hiding a script
+    // that is still a placeholder is impossible, so render everything inside
+    // the frame first. Otherwise the saved member list and the layout would
+    // differ from a session where lazy loading never unloaded anything.
+    this.workspace.materializeScriptsInRect(
+        this.xy_.x, this.xy_.y, this.width_, this.height_);
+  }
   // Read the members before the collapsed flag changes which list is in use.
   var members = this.getMembers();
   var oldIds = this.blockIds_;
@@ -844,6 +859,11 @@ Blockly.Frame.prototype.setCollapsed = function(collapsed) {
 
   this.setSize(this.width_, this.height_);
   this.workspace.resizeContents();
+  if (this.workspace.updateDeferredPlaceholders) {
+    // Expanding the frame makes the scripts it swallowed visible again, and the
+    // ones that are not loaded yet are represented by placeholders.
+    this.workspace.updateDeferredPlaceholders();
+  }
 };
 
 /**
@@ -861,6 +881,15 @@ Blockly.Frame.prototype.shiftContentBelow_ = function(members, dy) {
   // Things below the frame as it is drawn right now.
   var threshold = this.xy_.y +
       (dy < 0 ? this.height_ : Blockly.Frame.TOP_BAR_HEIGHT);
+
+  if (this.workspace.materializeScriptsInRect) {
+    // Everything below is about to move. A script that is still a placeholder
+    // would stay behind and then load on top of whatever moved into its place,
+    // so render the whole band first. Silent: this runs part-way through the
+    // operation, and the caller refreshes the scrollbars when it is done.
+    this.workspace.materializeScriptsInRect(
+        -1e9, threshold, 2e9, 1e9, true);
+  }
 
   var blocks = this.workspace.getTopBlocks(false);
   for (var i = 0; i < blocks.length; i++) {
