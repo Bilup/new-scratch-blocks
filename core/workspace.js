@@ -531,6 +531,13 @@ Blockly.Workspace.prototype.newBlock = function(prototypeName, opt_id) {
  * @param {boolean} redo False if undo, true if redo.
  */
 Blockly.Workspace.prototype.undo = function(redo) {
+  // Undo and redo replay events by block ID. Blocks in scripts that the lazy
+  // loader has not rendered yet would be skipped, leaving the workspace and
+  // the VM out of step. Render them first, through the same entry point as the
+  // menu bar, so the keyboard shortcuts cannot bypass that check.
+  if (typeof this.materializeAllScripts === 'function') {
+    this.materializeAllScripts();
+  }
   var inputStack = redo ? this.redoStack_ : this.undoStack_;
   var outputStack = redo ? this.undoStack_ : this.redoStack_;
   var inputEvent = inputStack.pop();

@@ -684,6 +684,28 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
     workspace.deferredContentBounds_ = bounds;
   };
+  // A script inside a collapsed frame is hidden along with the rest of the
+  // frame's contents. The frame remembers the ids it swallowed, so honour that
+  // list: otherwise the script pops back into view as soon as it is loaded.
+  var isInCollapsedFrame = function(script) {
+    if (!workspace.getTopFrames) {
+      return false;
+    }
+    var id = script.desc ? script.desc.id :
+        (script.xmlNode ? script.xmlNode.getAttribute('id') : null);
+    if (!id) {
+      return false;
+    }
+    var frames = workspace.getTopFrames();
+    for (var i = 0; i < frames.length; i++) {
+      var frame = frames[i];
+      if (frame.isCollapsed && frame.isCollapsed() && frame.getBlockIds &&
+          frame.getBlockIds().indexOf(id) !== -1) {
+        return true;
+      }
+    }
+    return false;
+  };
   var addPlaceholder = function(script) {
     if (script.placeholder || !script.hasPosition || !canvas) {
       return;
@@ -697,6 +719,9 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       'rx': 8,
       'ry': 8
     }, canvas);
+    if (isInCollapsedFrame(script)) {
+      script.placeholder.style.display = 'none';
+    }
   };
   var removePlaceholder = function(script) {
     if (script.placeholder) {
@@ -1087,7 +1112,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         var svgRoot = topBlock.getSvgRoot();
         if (svgRoot) {
           svgRoot.style.visibility = '';
-          svgRoot.style.display = '';
+          // Scripts inside a collapsed frame stay hidden, exactly as they were
+          // when the frame was collapsed. Loading happens without block events,
+          // so the frame never hears about them and cannot hide them itself.
+          svgRoot.style.display = isInCollapsedFrame(script) ? 'none' : '';
         }
         topBlock.intersects_ = true;
         topBlock.setConnectionsHidden(false);
@@ -1212,13 +1240,16 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     var changed = false;
     for (var i = scripts.length - 1; i >= 0; i--) {
       var script = scripts[i];
-      if (!script.loaded) {
-        continue;
-      }
+      // The VM is the source of truth. A script it no longer has must go,
+      // whether it is rendered or still a placeholder: otherwise a placeholder
+      // for a script that has been deleted elsewhere is left behind forever.
       if (!isStillOurs(script) ||
           (script.topBlock && !script.topBlock.workspace)) {
         dropScript(script);
         changed = true;
+        continue;
+      }
+      if (!script.loaded) {
         continue;
       }
       if (!script.hasPosition) {
@@ -1377,6 +1408,87 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       workspace.queueIntersectionCheck();
     }
   };
+  /**
+   * Render the scripts whose placeholders overlap a rectangle in workspace
+   * units. Frames need this: moving or collapsing a frame takes the scripts
+   * inside it along, and a script that is still a placeholder cannot be moved.
+   * @param {number} x Left edge.
+   * @param {number} y Top edge.
+   * @param {number} width Width.
+   * @param {number} height Height.
+   * @param {boolean=} opt_silent Skip the scrollbar refresh, for calls made
+   *     part-way through a drag.
+   */
+  workspace.materializeScriptsInRect = function(
+      x, y, width, height, opt_silent) {
+    var right = x + width;
+    var bottom = y + height;
+    var renderedAny = false;
+    var droppedAny = false;
+    Blockly.Field.startCache();
+    try {
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var script = scripts[i];
+        if (script.loaded) {
+          continue;
+        }
+        if (!isStillOurs(script)) {
+          dropScript(script);
+          droppedAny = true;
+          continue;
+        }
+        // A half-built script has to finish wherever it is, so only a script
+        // that has not been started yet can be skipped by position.
+        if (script.hasPosition && script.phase === -1) {
+          var left = workspace.RTL ? script.x - phWidth : script.x;
+          var scriptBottom = script.y + scriptHeight(script);
+          if (left + phWidth < x || left > right ||
+              scriptBottom < y || script.y > bottom) {
+            continue;
+          }
+        }
+        renderedAny = true;
+        var guard = 0;
+        while (!script.loaded && guard++ < 1e7) {
+          stepScript(script);
+          if (!script.topBlock && script.phase === -1) {
+            break;  // dropped
+          }
+        }
+      }
+    } finally {
+      Blockly.Field.stopCache();
+    }
+    if (!renderedAny && !droppedAny) {
+      return;
+    }
+    // These scripts were rendered on purpose, so restart the unload delay for
+    // them or the next sweep would throw them straight away again.
+    for (var n = 0; n < scripts.length; n++) {
+      if (scripts[n].loaded) {
+        scripts[n].lastNear = now();
+      }
+    }
+    updateBounds();
+    if (!opt_silent && workspace.rendered) {
+      workspace.resizeContents();
+      workspace.queueIntersectionCheck();
+    }
+  };
+  /**
+   * Re-apply collapsed-frame hiding to the placeholders. Called when a frame
+   * expands, so scripts it swallowed become visible again.
+   */
+  workspace.updateDeferredPlaceholders = function() {
+    for (var i = 0; i < scripts.length; i++) {
+      var script = scripts[i];
+      if (script.loaded || !script.placeholder) {
+        continue;
+      }
+      script.placeholder.style.display = isInCollapsedFrame(script) ?
+          'none' : '';
+    }
+  };
   workspace.wakeVirtualScripts_ = wake;
 
   /**
@@ -1436,6 +1548,8 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     workspace.findDeferredScriptByBlockId = null;
     workspace.getUnloadedBlockCount = null;
     workspace.materializeAllScripts = null;
+    workspace.materializeScriptsInRect = null;
+    workspace.updateDeferredPlaceholders = null;
     workspace.wakeVirtualScripts_ = null;
     for (var i = 0; i < scripts.length; i++) {
       discardPartialScript(scripts[i]);
@@ -1935,6 +2049,9 @@ Blockly.Xml.blockDescToDom = function(desc, ctx) {
     element.setAttribute('x', desc.x);
     element.setAttribute('y', desc.y);
   }
+  if (desc.booleanToggle) {
+    element.setAttribute('boolean-toggle', true);
+  }
   if (desc.mutation) {
     element.appendChild(Blockly.Xml.mutationDescToDom_(desc.mutation));
   }
@@ -2067,6 +2184,10 @@ Blockly.Xml.createDescLoader_ = function(desc, ctx, workspace) {
           switch (task.kind) {
             case CREATE: {
               var block = workspace.newBlock(task.desc.opcode, task.desc.id);
+              // Not part of the block's DOM, so the XML importer sets it from
+              // an attribute instead. Keep the toggle mark when rebuilding a
+              // script from descriptions or it is silently lost on unload.
+              block.booleanToggle_ = !!task.desc.booleanToggle;
               created++;
               createdBlocks.push(block);
               if (task.link) {
