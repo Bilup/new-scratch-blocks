@@ -1331,7 +1331,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
     return out;
   };
-  workspace.findDeferredScriptByBlockId = function(id) {
+  // The deferred script record that owns the given block id, or null when the
+  // block is not waiting to be rendered. Pure lookup: the caller decides what
+  // to do with a record the VM has already dropped.
+  var findScriptRecordByBlockId = function(id) {
     for (var i = 0; i < scripts.length; i++) {
       var s = scripts[i];
       if (s.loaded || s.phase !== -1) {
@@ -1345,21 +1348,138 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
           }
         });
         if (found) {
-          return {x: s.x, y: s.y};
+          return s;
         }
         continue;
       }
+      if (!s.xmlNode) {
+        continue;
+      }
       if (s.xmlNode.getAttribute('id') === id) {
-        return {x: s.x, y: s.y};
+        return s;
       }
       var els = s.xmlNode.getElementsByTagName('block');
       for (var j = 0; j < els.length; j++) {
         if (els[j].getAttribute('id') === id) {
-          return {x: s.x, y: s.y};
+          return s;
         }
       }
     }
     return null;
+  };
+  workspace.findDeferredScriptByBlockId = function(id) {
+    var s = findScriptRecordByBlockId(id);
+    return s ? {x: s.x, y: s.y} : null;
+  };
+  /**
+   * Collect every block id an undo or redo replay is going to look up.
+   * @param {!Array.<!Blockly.Events.Abstract>} events Events about to be run.
+   * @return {!Array.<string>} Unique block ids, in event order.
+   * @private
+   */
+  var collectEventBlockIds = function(events) {
+    var ids = [];
+    var seen = Object.create(null);
+    var add = function(id) {
+      if (id && !seen[id]) {
+        seen[id] = true;
+        ids.push(id);
+      }
+    };
+    var scanXml = function(xml) {
+      if (!xml || typeof xml.getElementsByTagName !== 'function') {
+        return;
+      }
+      if (xml.getAttribute) {
+        add(xml.getAttribute('id'));
+      }
+      var els = xml.getElementsByTagName('block');
+      for (var i = 0; i < els.length; i++) {
+        add(els[i].getAttribute('id'));
+      }
+    };
+    for (var i = 0; i < events.length; i++) {
+      var event = events[i];
+      if (!event) {
+        continue;
+      }
+      add(event.blockId);
+      // Dragging a block into or out of a script names the scripts on both
+      // ends; both have to exist or the replay drops the connection.
+      add(event.newParentId);
+      add(event.oldParentId);
+      if (event.blockIds) {
+        // FrameChange carries the members it swallowed.
+        for (var j = 0; j < event.blockIds.length; j++) {
+          add(event.blockIds[j]);
+        }
+      }
+      scanXml(event.xml);
+      scanXml(event.oldXml);
+      scanXml(event.newXml);
+    }
+    return ids;
+  };
+  /**
+   * Render the scripts that an undo or redo is about to replay events into.
+   * Rendering everything made the most common edit (undo a small change while
+   * most of a big project is unloaded) rebuild the entire workspace; this only
+   * brings back the scripts whose block ids appear in the events.
+   * @param {!Array.<!Blockly.Events.Abstract>} events Filtered events.
+   */
+  workspace.materializeScriptsForEvents = function(events) {
+    if (!events || !events.length) {
+      return;
+    }
+    var ids = collectEventBlockIds(events);
+    if (!ids.length) {
+      return;
+    }
+    var needed = [];
+    for (var i = 0; i < ids.length; i++) {
+      if (workspace.getBlockById(ids[i])) {
+        continue;  // Already rendered; the replay will find it.
+      }
+      var record = findScriptRecordByBlockId(ids[i]);
+      if (record && needed.indexOf(record) === -1) {
+        needed.push(record);
+      }
+    }
+    if (!needed.length) {
+      return;
+    }
+    Blockly.Field.startCache();
+    try {
+      for (var n = 0; n < needed.length; n++) {
+        if (!isStillOurs(needed[n])) {
+          // The VM deleted this script while it was unloaded; do not rebuild a
+          // view of blocks that no longer exist.
+          dropScript(needed[n]);
+          continue;
+        }
+        var guard = 0;
+        while (!needed[n].loaded && guard++ < 1e7) {
+          stepScript(needed[n]);
+          if (!needed[n].topBlock && needed[n].phase === -1) {
+            break;  // Dropped part-way through.
+          }
+        }
+      }
+    } finally {
+      Blockly.Field.stopCache();
+    }
+    // Anything rendered for the replay was rendered on purpose, so restart the
+    // unload delay instead of letting the next sweep throw it away again.
+    for (var m = 0; m < scripts.length; m++) {
+      if (scripts[m].loaded) {
+        scripts[m].lastNear = now();
+      }
+    }
+    updateBounds();
+    if (workspace.rendered) {
+      workspace.resizeContents();
+      workspace.queueIntersectionCheck();
+    }
   };
   /**
    * How many blocks are in scripts that are not currently rendered. Shadow
@@ -1563,6 +1683,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     workspace.getUnloadedBlockCount = null;
     workspace.materializeAllScripts = null;
     workspace.materializeScriptsInRect = null;
+    workspace.materializeScriptsForEvents = null;
     workspace.updateDeferredPlaceholders = null;
     workspace.wakeVirtualScripts_ = null;
     for (var i = 0; i < scripts.length; i++) {

@@ -552,17 +552,13 @@ Blockly.Workspace.prototype.newBlock = function(prototypeName, opt_id) {
 Blockly.Workspace.prototype.undo = function(redo) {
   // Undo and redo replay events by block ID. Blocks in scripts that the lazy
   // loader has not rendered yet would be skipped, leaving the workspace and
-  // the VM out of step. Render them first, through the same entry point as the
-  // menu bar, so the keyboard shortcuts cannot bypass that check.
+  // the VM out of step.
   //
   // Rendering must not add events of its own to either stack, so undo recording
   // stays off from before that work until the replay is over.
   var recordUndoWasEnabled = Blockly.Events.recordUndo;
   Blockly.Events.recordUndo = false;
   try {
-    if (typeof this.materializeAllScripts === 'function') {
-      this.materializeAllScripts();
-    }
     var inputStack = redo ? this.redoStack_ : this.undoStack_;
     var outputStack = redo ? this.undoStack_ : this.redoStack_;
     var inputEvent = inputStack.pop();
@@ -580,6 +576,16 @@ Blockly.Workspace.prototype.undo = function(redo) {
       outputStack.push(event);
     }
     events = Blockly.Events.filter(events, redo);
+    // Only the scripts this replay actually touches need their blocks back.
+    // Rendering the whole workspace here made every undo on a large project
+    // pay for scripts that are nowhere near the screen (a 37 block delete could
+    // pull 800 blocks back in). The loader fallback keeps old callers working
+    // when the workspace is not using the deferred renderer.
+    if (typeof this.materializeScriptsForEvents === 'function') {
+      this.materializeScriptsForEvents(events);
+    } else if (typeof this.materializeAllScripts === 'function') {
+      this.materializeAllScripts();
+    }
     if (Blockly.selected) {
       Blockly.Events.disable();
       try {
