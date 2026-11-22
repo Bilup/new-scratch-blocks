@@ -471,6 +471,14 @@ Blockly.Xml.VIRTUAL_UNLOAD_DELAY_MS = 20000;
 Blockly.Xml.VIRTUAL_SWEEP_INTERVAL_MS = 2000;
 
 /**
+ * How many blocks one sweep, or one tidy up pass, may unload before stopping
+ * and leaving the rest to the next one. Disposing a script and remeasuring the
+ * workspace costs tens of milliseconds, so an unbudgeted pass is a visible
+ * freeze on a project with thousands of blocks.
+ */
+Blockly.Xml.VIRTUAL_UNLOAD_BUDGET_BLOCKS = 600;
+
+/**
  * @param {!Element} xml Workspace XML. When opt_descs is given this carries
  *     only the variables, frames and workspace comments; the blocks come from
  *     the descriptions.
@@ -1191,10 +1199,14 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     }
     if (boundsDirty) {
       updateBounds();
-      // resizeContents() measures every block, so don't do it every frame, and
-      // never mid-pan: the drag runs off metrics captured when it started.
+      // resizeContents() measures every block in the workspace, which on a
+      // project with thousands of them is tens of milliseconds. Doing that
+      // every 100ms while scripts are still arriving is what turned scrolling
+      // into stutter: most frames were cheap and then one cost 120ms. The
+      // scrollbars only need to catch up once loading has paused, so this now
+      // runs on a much longer timer and always in settle().
       var t = now();
-      if (workspace.rendered && !panning && t - lastResize > 100) {
+      if (workspace.rendered && !panning && t - lastResize > 500) {
         lastResize = t;
         workspace.resizeContents();
       } else {
@@ -1232,7 +1244,10 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     if (!announcedDone) {
       announcedDone = true;
       if (workspace.refreshToolboxSelection_) {
-        workspace.refreshToolboxSelection_();
+        // Loading blocks does not change what the toolboxes should contain;
+        // the GUI rebuilds it from the target's XML separately. Ask for a
+        // refresh without forcing a flyout rebuild.
+        workspace.refreshToolboxSelection_(false);
       }
       if (callbacks.onDone) {
         callbacks.onDone();
@@ -1265,6 +1280,11 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     var t = now();
     var rtlWidth = workspace.RTL ? workspace.getWidth() : 0;
     var changed = false;
+    // Disposing a big script and remeasuring the workspace costs tens of
+    // milliseconds. Unloading a whole screen of them in one pass turned the
+    // sweep into a periodic freeze, so this stops after roughly one screen and
+    // lets the next sweep pick up the rest.
+    var unloadedBlocks = 0;
     for (var i = scripts.length - 1; i >= 0; i--) {
       var script = scripts[i];
       // The VM is the source of truth. A script it no longer has must go,
@@ -1312,6 +1332,11 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       }
       if (unloadScript(script)) {
         changed = true;
+        unloadedBlocks += script.visible || 1;
+        if (unloadedBlocks >= Blockly.Xml.VIRTUAL_UNLOAD_BUDGET_BLOCKS) {
+          // Enough for one sweep; the next one continues where this stopped.
+          break;
+        }
       }
     }
     if (changed) {
@@ -1678,6 +1703,17 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
       }
       if (unloadScript(script)) {
         changed = true;
+        unloadedBlocks += script.visible || 1;
+        if (unloadedBlocks >= Blockly.Xml.VIRTUAL_UNLOAD_BUDGET_BLOCKS) {
+          // Still work left. Do it on the next tick instead of in this one, so
+          // tidying never turns into a single 300ms task.
+          setTimeout(function() {
+            if (workspace.releaseOffscreenScripts) {
+              workspace.releaseOffscreenScripts();
+            }
+          }, 0);
+          break;
+        }
       }
     }
     if (changed) {
