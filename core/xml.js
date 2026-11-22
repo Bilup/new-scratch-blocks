@@ -1244,6 +1244,19 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     if (cancelled) {
       return;
     }
+    // Nothing rendered means nothing to unload. Skip the viewport read (it
+    // measures the DOM) instead of paying for it every two seconds on a
+    // workspace where every script is still a placeholder.
+    var anyLoaded = false;
+    for (var l = 0; l < scripts.length; l++) {
+      if (scripts[l].loaded) {
+        anyLoaded = true;
+        break;
+      }
+    }
+    if (!anyLoaded) {
+      return;
+    }
     var viewport = getViewport();
     if (!viewport) {
       return;
@@ -1460,7 +1473,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         var guard = 0;
         while (!needed[n].loaded && guard++ < 1e7) {
           stepScript(needed[n]);
-          if (!needed[n].topBlock && needed[n].phase === -1) {
+          if (!needed[n].topBlock && needed[n].phase === -1 && !needed[n].builder) {
             break;  // Dropped part-way through.
           }
         }
@@ -1520,7 +1533,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         var guard = 0;
         while (!script.loaded && guard++ < 1e7) {
           stepScript(script);
-          if (!script.topBlock && script.phase === -1) {
+          if (!script.topBlock && script.phase === -1 && !script.builder) {
             break;  // dropped
           }
         }
@@ -1585,7 +1598,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
         var guard = 0;
         while (!script.loaded && guard++ < 1e7) {
           stepScript(script);
-          if (!script.topBlock && script.phase === -1) {
+          if (!script.topBlock && script.phase === -1 && !script.builder) {
             break;  // dropped
           }
         }
@@ -1607,6 +1620,71 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     if (!opt_silent && workspace.rendered) {
       workspace.resizeContents();
       workspace.queueIntersectionCheck();
+    }
+  };
+  /**
+   * Put every script that is well outside the viewport back to a placeholder
+   * right now, instead of waiting out VIRTUAL_UNLOAD_DELAY_MS.
+   *
+   * Tidying the workspace (and any other caller of materializeAllScripts)
+   * leaves every script rendered. On a large project that means thousands of
+   * SVG groups, which makes scrolling crawl until the unload delay expires --
+   * twenty seconds of it. The delay exists so that a script scrolled just past
+   * the edge does not thrash; a script the user has just been moved far away
+   * from does not need that grace.
+   */
+  workspace.releaseOffscreenScripts = function() {
+    var viewport = getViewport();
+    if (!viewport) {
+      return;
+    }
+    var rtlWidth = workspace.RTL ? workspace.getWidth() : 0;
+    var changed = false;
+    for (var i = scripts.length - 1; i >= 0; i--) {
+      var script = scripts[i];
+      // Same bookkeeping the sweep does: a script the VM no longer has must be
+      // dropped rather than unloaded, or its placeholder would be left behind.
+      if (!isStillOurs(script) ||
+          (script.topBlock && !script.topBlock.workspace)) {
+        dropScript(script);
+        changed = true;
+        continue;
+      }
+      if (!script.loaded) {
+        continue;
+      }
+      // Positions come from the VM description, so callers must run this after
+      // the move events they just fired have been delivered (the clean up paths
+      // schedule it instead of calling straight away). A freshly moved block's
+      // SVG transform is not reliable here: right after a bulk move it still
+      // reports 0,0 and every script would look like it is on screen.
+      if (script.desc) {
+        if (typeof script.desc.x === 'number') {
+          script.x = rtlWidth ? rtlWidth - script.desc.x : script.desc.x;
+        }
+        if (typeof script.desc.y === 'number') {
+          script.y = script.desc.y;
+        }
+      }
+      if (!script.hasPosition) {
+        continue;
+      }
+      if (scriptDistance(script, viewport) <= Blockly.Xml.VIRTUAL_UNLOAD_SCREENS) {
+        script.lastNear = now();
+        continue;
+      }
+      if (!canUnload(script)) {
+        continue;
+      }
+      if (unloadScript(script)) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      updateBounds();
+      if (workspace.rendered) {
+        workspace.resizeContents();
+      }
     }
   };
   /**
@@ -1685,6 +1763,7 @@ Blockly.Xml.startDeferredRender_ = function(workspace, scripts, callbacks) {
     workspace.materializeScriptsInRect = null;
     workspace.materializeScriptsForEvents = null;
     workspace.updateDeferredPlaceholders = null;
+    workspace.releaseOffscreenScripts = null;
     workspace.wakeVirtualScripts_ = null;
     for (var i = 0; i < scripts.length; i++) {
       discardPartialScript(scripts[i]);

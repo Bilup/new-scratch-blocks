@@ -1774,6 +1774,19 @@ Blockly.WorkspaceSvg.prototype.cleanUp = function() {
   Blockly.Events.setGroup(false);
   this.setResizesEnabled(true);
   this.resizeContents();
+  // Tidying leaves every script rendered, and the unload delay would keep them
+  // that way for another twenty seconds. Put the ones the user is not looking
+  // at back to placeholders now so the workspace stays cheap to scroll. The
+  // blocks were just moved and their positions reach the VM through queued move
+  // events, so wait for that queue to drain before measuring distances.
+  if (this.releaseOffscreenScripts) {
+    var workspace = this;
+    setTimeout(function() {
+      if (workspace.releaseOffscreenScripts) {
+        workspace.releaseOffscreenScripts();
+      }
+    }, 100);
+  }
 };
 
 /**
