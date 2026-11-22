@@ -101,6 +101,14 @@ Blockly.Toolbox.prototype.height = 0;
 Blockly.Toolbox.prototype.selectedItem_ = null;
 
 /**
+ * Whether the flyout needs to be (re)built. Starts true so the first render
+ * always happens.
+ * @type {boolean}
+ * @private
+ */
+Blockly.Toolbox.prototype.flyoutDirty_ = true;
+
+/**
  * Initializes the toolbox.
  */
 Blockly.Toolbox.prototype.init = function() {
@@ -186,8 +194,27 @@ Blockly.Toolbox.prototype.createFlyout_ = function() {
  */
 Blockly.Toolbox.prototype.populate_ = function(newTree) {
   this.categoryMenu_.populate(newTree);
+  this.markFlyoutDirty();
   this.showAll_();
   this.setSelectedItem(this.categoryMenu_.categories_[0], false);
+};
+
+/**
+ * Rebuild the flyout only if its contents changed since the last render.
+ * @package
+ */
+Blockly.Toolbox.prototype.refreshSelectionIfDirty = function() {
+  this.showAll_();
+};
+
+/**
+ * Note that the flyout contents are out of date. Rendering the flyout builds
+ * every block of every category, which is the single most expensive part of a
+ * target switch (~350ms on a toolbox with ten extension categories), so the
+ * workspace only pays for it when something really changed.
+ */
+Blockly.Toolbox.prototype.markFlyoutDirty = function() {
+  this.flyoutDirty_ = true;
 };
 
 /**
@@ -195,6 +222,13 @@ Blockly.Toolbox.prototype.populate_ = function(newTree) {
  * @private
  */
 Blockly.Toolbox.prototype.showAll_ = function() {
+  // Refreshes are also requested after loading blocks or re-enabling toolbox
+  // refreshes, neither of which changes what the flyout should contain. Those
+  // would rebuild every flyout block for nothing; skip them.
+  if (this.flyout_ && !this.flyoutDirty_) {
+    return;
+  }
+  this.flyoutDirty_ = false;
   var allContents = [];
   for (var i = 0; i < this.categoryMenu_.categories_.length; i++) {
     var category = this.categoryMenu_.categories_[i];
@@ -334,6 +368,7 @@ Blockly.Toolbox.prototype.getClientRect = function() {
  * procedures.
  */
 Blockly.Toolbox.prototype.refreshSelection = function() {
+  this.markFlyoutDirty();
   this.showAll_();
 };
 

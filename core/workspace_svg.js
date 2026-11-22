@@ -1325,21 +1325,41 @@ Blockly.WorkspaceSvg.prototype.pasteWorkspaceComment_ = function(xmlComment) {
 
 /**
  * Refresh the toolbox unless there's a drag in progress.
+ * @param {boolean=} opt_contentChanged Whether the toolbox content actually
+ *     changed. Callers that merely finished a batch (loading blocks, or
+ *     re-enabling refreshes) pass false: rebuilding the flyout is expensive and
+ *     there is nothing new to show. Defaults to true.
  * @private
  */
-Blockly.WorkspaceSvg.prototype.refreshToolboxSelection_ = function() {
+Blockly.WorkspaceSvg.prototype.refreshToolboxSelection_ = function(opt_contentChanged) {
+  var contentChanged = opt_contentChanged !== false;
   // Updating the toolbox can be expensive. Don't do it when when it is
   // disabled.
   if (this.toolbox_) {
-    if (this.toolbox_.flyout_ && !this.currentGesture_ &&
-      this.toolboxRefreshEnabled_) {
-      this.toolbox_.refreshSelection();
+    if (this.toolbox_.flyout_ && !this.currentGesture_) {
+      if (!this.toolboxRefreshEnabled_) {
+        // Remember that the contents are out of date so re-enabling refreshes
+        // rebuilds the flyout once — but do not render here.
+        if (contentChanged && this.toolbox_.markFlyoutDirty) {
+          this.toolbox_.markFlyoutDirty();
+        }
+        return;
+      }
+      if (contentChanged) {
+        this.toolbox_.refreshSelection();
+      } else if (this.toolbox_.refreshSelectionIfDirty) {
+        this.toolbox_.refreshSelectionIfDirty();
+      }
     }
   } else {
     var thisTarget = this.targetWorkspace;
     if (thisTarget && thisTarget.toolbox_ && thisTarget.toolbox_.flyout_ &&
       !thisTarget.currentGesture_ && thisTarget.toolboxRefreshEnabled_) {
-      thisTarget.toolbox_.refreshSelection();
+      if (contentChanged) {
+        thisTarget.toolbox_.refreshSelection();
+      } else if (thisTarget.toolbox_.refreshSelectionIfDirty) {
+        thisTarget.toolbox_.refreshSelectionIfDirty();
+      }
     }
   }
 };
@@ -2481,8 +2501,9 @@ Blockly.WorkspaceSvg.prototype.setToolboxRefreshEnabled = function(enabled) {
   var reenabled = (!this.toolboxRefreshEnabled_ && enabled);
   this.toolboxRefreshEnabled_ = enabled;
   if (reenabled) {
-    // Newly enabled.  Trigger a refresh.
-    this.refreshToolboxSelection_();
+    // Newly enabled. Rebuild the flyout only if something changed while
+    // refreshes were off; a batch that only loaded blocks has nothing new.
+    this.refreshToolboxSelection_(false);
   }
 };
 
